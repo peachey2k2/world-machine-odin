@@ -1,5 +1,6 @@
-# IDE stuff
+# IDE/LSP stuff
 .vscode
+ols.json
 
 # Compiled nob executables
 nob
