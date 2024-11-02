@@ -1,6 +1,6 @@
 # IDE stuff
-./.vscode
+.vscode
 
 # Compiled nob executables
-./nob
-./nob.old
+nob
+nob.old
