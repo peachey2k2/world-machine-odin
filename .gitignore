@@ -4,3 +4,6 @@
 # Compiled nob executables
 nob
 nob.old
+
+# Compiled binaries
+bin
