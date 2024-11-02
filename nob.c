@@ -58,6 +58,8 @@ Cmd immediate_cmd = {0};
 
 int main(int argc, char **argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
+    
+    mkdir_if_not_exists("bin");
 
     if (argc == 1) {
         printf("Usage: nob [help|run|build|check]\n");
