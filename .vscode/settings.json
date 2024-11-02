@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "nob.h": "c",
+        "bitset": "c",
+        "format": "c",
+        "errno.h": "c"
+    }
+}
