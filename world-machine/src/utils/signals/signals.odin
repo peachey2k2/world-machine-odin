@@ -32,7 +32,7 @@ Signal::struct {
     listeners : ^[dynamic]proc()
 }
 
-signals : map[string]Signal
+@(private) signals : map[string]Signal
 
 create_signal::proc(name:string) -> (ok:bool) {
     _, has := &signals[name]
@@ -93,7 +93,7 @@ Signals::enum {
     TICK_END,
 }
 
-engine_signals : [Signals]EngineSignal
+@(private) engine_signals : [Signals]EngineSignal
 
 connect_engine_signal::proc(signal:Signals, to:proc()) -> (ok:bool) {
     append(engine_signals[signal].listeners, to)
@@ -116,7 +116,7 @@ emit_engine_signal::proc(signal:Signals) {
 // This is seperated from the main signals since we never remove these listeners
 // and we call them in reverse order to not break stuff
 
-deinit_list := [dynamic]proc(){}
+@(private) deinit_list := [dynamic]proc(){}
 
 defer_deinit::proc(deinit_function:proc()) {
     append(&deinit_list, deinit_function)
