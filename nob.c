@@ -2,17 +2,34 @@
 #define NOB_STRIP_PREFIX // strip `nob_` prefix
 
 #include "nob.h"
-#include <string.h> // strcmp
+
+
+// --------------------|  Constants/Macros  |--------------------
+
+const char *WMAC_SOURCE = "./world-machine/src";
+const char *WMAC_DEST = "./bin/out";
+
+#define ADDRESS_SANITIZER
+// #define MEMORY_SANITIZER
+// #define THREAD_SANITIZER
+
+// #define VERBOSE_TIMINGS
+#define WARNINGS_AS_ERRORS
+
 
 // --------------------|  Function Declarations  |--------------------
 
 void build();
 void run();
 void check();
+void clean();
+
+void show_help();
 
 void add_func(void (*fn)());
 char* concat(const char *s1, const char *s2);
 bool rwildcard(const char *dir, const char *ext, void (*fn)(const char*));
+void cmd_print(Cmd cmd);
 
 
 // --------------------|  Macros  |--------------------
@@ -30,20 +47,12 @@ bool rwildcard(const char *dir, const char *ext, void (*fn)(const char*));
     immediate_cmd.count = 0;                                                \
 
 
-// --------------------|  Structs  |--------------------
+// --------------------|  Types  |--------------------
 
-typedef struct Func{
+typedef struct Func {
     void (*fn)();
     struct Func *next;
 } Func;
-
-
-// --------------------|  Constants  |--------------------
-
-const char *WMAC_SOURCE = "./world-machine/src";
-const char *WMAC_DEST = "./bin/out";
-
-const int BUFFER_SIZE = 256;
 
 
 // --------------------|  Globals  |--------------------
@@ -53,16 +62,22 @@ Func *funcs_last = NULL;
 
 Cmd immediate_cmd = {0};
 
+char** passed_args = NULL;
+int passed_args_count = 0;
+
+bool debug = false;
+
 
 // --------------------|  Build Functions  |--------------------
 
 int main(int argc, char **argv) {
+    nob_minimal_log_level = NOB_WARNING;
     NOB_GO_REBUILD_URSELF(argc, argv);
     
     mkdir_if_not_exists("bin");
 
     if (argc == 1) {
-        printf("Usage: nob [help|run|build|check]\n");
+        printf("No arguments given. Use `./nob build` to build.\n");
         return 0;
     }
 
@@ -70,19 +85,31 @@ int main(int argc, char **argv) {
     for_range(i, 1, argc) {
         char* arg = argv[i];
 
-        ifeq(arg, "help") {
+        ifeq(arg, "--") {
+            passed_args = argv + i + 1;
+            passed_args_count = argc - i - 1;
+            break;
+        }
+        else ifeq(arg, "help") {
             printf("TODO:\n");
+            show_help();
             return 0;
         }
-        ifeq(arg, "run") {
-            add_func(build);
+        else ifeq(arg, "run") {
             add_func(run);
         }
-        ifeq(arg, "build") {
+        else ifeq(arg, "build") {
             add_func(build);
         }
-        ifeq(arg, "check") {
+        else ifeq(arg, "check") {
             add_func(check);
+        }
+        else ifeq(arg, "clean") {
+            add_func(clean);
+        }
+
+        else ifeq(arg, "-dbg") {
+            debug = true;
         }
     }
 
@@ -97,17 +124,58 @@ int main(int argc, char **argv) {
 }
 
 void build() {
-    cmd_immediate(
+    Cmd cmd = {0};
+    cmd_append(&cmd,
         "odin",
         "build",
         WMAC_SOURCE,
         concat("-out:", WMAC_DEST)
     );
+
+    #ifdef MEMORY_SANITIZER
+    cmd_append(&cmd, "-sanitize:memory");
+    #endif
+
+    #ifdef ADDRESS_SANITIZER
+    cmd_append(&cmd, "-sanitize:address");
+    #endif
+
+    #ifdef THREAD_SANITIZER
+    cmd_append(&cmd, "-sanitize:thread");
+    #endif
+
+    #ifdef VERBOSE_TIMINGS
+    cmd_append(&cmd, "-show-more-timings");
+    #else
+    cmd_append(&cmd, "-show-timings");
+    #endif
+
+    #ifdef WARNINGS_AS_ERRORS
+    cmd_append(&cmd, "-warnings-as-errors");
+    #endif
+
+    if (debug) {
+        cmd_append(&cmd, "-debug");
+    } else {
+        cmd_append(&cmd, "-disable-assert");
+    }
+
+    int i = 0;
+    for_range(i, 0, passed_args_count) {
+        cmd_append(&cmd, passed_args[i]);
+    }
+
+    cmd_print(cmd); 
+    if(!cmd_run_sync(cmd)) exit(1);
+    cmd_free(cmd);
+
     printf("[✓] Build successful.\n");
 }
 
 void run() {
     cmd_immediate(WMAC_DEST);
+
+    printf("[✓] Run successful.\n");
 }
 
 void check() {
@@ -206,5 +274,10 @@ defer:
     nob_da_free(src_sb);
     nob_da_free(children);
     return result;
+}
+
+void cmd_print(Cmd cmd) {
+    int i = 0;
+    for_range(i, 0, cmd.count) printf("%s ", cmd.items[i]); printf("\n");
 }
 

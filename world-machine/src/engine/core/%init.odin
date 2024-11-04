@@ -17,7 +17,6 @@ renderer : ^sdl.Renderer
 init::proc() {
     signals.init()
     set_ext_vars()
-    // init_raylib()
     init_sdl()
 
     // modloader.load_mods()
@@ -26,11 +25,6 @@ init::proc() {
     // render.init_atlas()
     // modloader.init_blocks()
 }
-
-// init_raylib::proc() {
-//     raylib.InitWindow(800, 450, "World Machine")
-//     raylib.SetTargetFPS(60)
-// }
 
 init_sdl::proc() {
     init_flags := sdl.InitFlags{
@@ -76,6 +70,8 @@ deinit::proc() {
 
     sdl.DestroyWindow(window)
     sdl.Quit()
+
+    os.exit(0)
 }
 
 set_ext_vars::proc() {

@@ -10,9 +10,7 @@ init::proc() {
     defer_deinit(deinit)
 }
 
-
-
-deinit::proc() {
+@(private) deinit::proc() {
     for i in Signals {
         delete(engine_signals[i].listeners^)
     }

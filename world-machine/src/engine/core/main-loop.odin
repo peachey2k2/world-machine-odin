@@ -8,12 +8,6 @@ import "core:fmt"
 window_should_close := false
 
 main_loop::proc() {
-    // for !raylib.WindowShouldClose() {
-    //     raylib.BeginDrawing()
-    //     raylib.ClearBackground(raylib.RAYWHITE)
-    //     raylib.DrawText("Congrats! You created your first window!", 190, 200, 20, raylib.LIGHTGRAY)
-    //     raylib.EndDrawing()
-    // }
     for (window_should_close == false) {
         handle_events()
         render()
@@ -21,13 +15,13 @@ main_loop::proc() {
 }
 
 handle_events::proc() {
-    event : ^sdl.Event
+    event : sdl.Event
     sdl.PumpEvents()
-    for sdl.PollEvent(event) {
-        if event == nil do continue
+    for sdl.PollEvent(&event) {
         #partial switch event.type {
-        case .QUIT:
-            window_should_close = true
+        case .QUIT:    on_quit()
+        case .KEYDOWN: on_key_down(&event)
+        case .KEYUP:   on_key_up(&event)
         }
     }
 }
@@ -37,4 +31,21 @@ render::proc() {
     // draw stuff here
     sdl.RenderPresent(renderer)
     sdl.Delay(16)
+}
+
+on_quit::proc() {
+    window_should_close = true
+}
+
+on_key_down::proc(event:^sdl.Event) {
+    key_event := event.key
+    fmt.printf("Key down: %d\n", key_event.keysym.scancode)
+    #partial switch key_event.keysym.scancode {
+        case sdl.SCANCODE_ESCAPE: window_should_close = true
+    }
+}
+
+on_key_up::proc(event:^sdl.Event) {
+    key_event := event.key
+    fmt.printf("Key up: %d\n", key_event.keysym.scancode)
 }
