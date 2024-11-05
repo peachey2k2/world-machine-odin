@@ -7,11 +7,9 @@
 // --------------------|  Constants/Macros  |--------------------
 
 const char *WMAC_SOURCE = "./world-machine/src";
-const char *WMAC_DEST = "./bin/out";
-
-#define ADDRESS_SANITIZER
-// #define MEMORY_SANITIZER
-// #define THREAD_SANITIZER
+const char *WMAC_DESTINATION = "./bin";
+const char *WMAC_EXECUTABLE = "./bin/out";
+const char *WMAC_DEPENDENCIES = "./bin/deps.json";
 
 // #define VERBOSE_TIMINGS
 #define WARNINGS_AS_ERRORS
@@ -28,8 +26,11 @@ void show_help();
 
 void add_func(void (*fn)());
 char* concat(const char *s1, const char *s2);
-bool rwildcard(const char *dir, const char *ext, void (*fn)(const char*));
+bool call_for_func(const char *dir, bool (*cond)(const char*), void (*fn)(const char*), bool wanted_output, bool call_for_dirs);
+bool call_for_suffix(const char *dir, const char *suffix, void (*fn)(const char*), bool call_for_dirs);
+bool call_for_all(const char *dir, void (*fn)(const char*), bool call_for_dirs);
 void cmd_print(Cmd cmd);
+void delete_file(const char *path);
 
 
 // --------------------|  Macros  |--------------------
@@ -67,6 +68,10 @@ int passed_args_count = 0;
 
 bool debug = false;
 
+bool sanitize_address = false;
+bool sanitize_memory = false;
+bool sanitize_thread = false;
+
 
 // --------------------|  Build Functions  |--------------------
 
@@ -77,7 +82,7 @@ int main(int argc, char **argv) {
     mkdir_if_not_exists("bin");
 
     if (argc == 1) {
-        printf("No arguments given. Use `./nob build` to build.\n");
+        printf("No arguments given.\nUse `./nob help` for info.\n");
         return 0;
     }
 
@@ -91,7 +96,6 @@ int main(int argc, char **argv) {
             break;
         }
         else ifeq(arg, "help") {
-            printf("TODO:\n");
             show_help();
             return 0;
         }
@@ -108,8 +112,18 @@ int main(int argc, char **argv) {
             add_func(clean);
         }
 
+
         else ifeq(arg, "-dbg") {
             debug = true;
+        }
+        else ifeq(arg, "-asan") {
+            sanitize_address = true;
+        }
+        else ifeq(arg, "-msan") {
+            sanitize_memory = true;
+        }
+        else ifeq(arg, "-tsan") {
+            sanitize_thread = true;
         }
     }
 
@@ -129,7 +143,7 @@ void build() {
         "odin",
         "build",
         WMAC_SOURCE,
-        concat("-out:", WMAC_DEST)
+        concat("-out:", WMAC_EXECUTABLE),
     );
 
     #ifdef MEMORY_SANITIZER
@@ -173,7 +187,7 @@ void build() {
 }
 
 void run() {
-    cmd_immediate(WMAC_DEST);
+    cmd_immediate(WMAC_EXECUTABLE);
 
     printf("[✓] Run successful.\n");
 }
@@ -185,6 +199,38 @@ void check() {
         WMAC_SOURCE
     );
     printf("[✓] Syntax check passed.\n");
+}
+
+void clean() {
+    if (!call_for_all(WMAC_DESTINATION, delete_file, false)) {
+        printf("[✗] Clean failed.\n");
+        exit(1);
+    }
+
+    printf("[✓] Clean successful.\n");
+}
+
+void show_help() {
+    printf(
+        "Usage: ./nob [commands] [options]\n"
+        "Note that you can use multiple commands.\n"
+        "Example: ./nob build run (Builds and runs the project)\n"
+        "\n"
+        "Commands:\n"
+        "  build     Build the project\n"
+        "  run       Run the project\n"
+        "  check     Check the syntax of the project\n"
+        "  clean     Clean the project\n"
+        "  help      Show this help message\n"
+        "\n"
+        "Build options:\n"
+        "  -dbg      Enable debug mode and disable asserts\n"
+        "  -asan     Enable Address Sanitizer\n"
+        "  -msan     Enable Memory Sanitizer\n"
+        "  -tsan     Enable Thread Sanitizer\n"
+        "  --        Passes all arguments after it to the Odin compiler\n"
+        "\n"
+    );
 }
 
 
@@ -220,7 +266,10 @@ char* concat(const char *s1, const char *s2) {
     return result;
 }
 
-bool rwildcard(const char *path, const char *suffix, void (*fn)(const char*)) {
+// scans directory at `path` recursively, runs `fn` on each file with `suffix`
+// `wanted_output` determines at what output of `cond` to run `fn` (true/false)
+// `call_for_dirs` determines whether to run `fn` on directories
+bool call_for_func(const char *path, bool (*cond)(const char*), void (*fn)(const char*), bool wanted_output, bool call_for_dirs) {
     bool result = true;
     Nob_File_Paths children = {0};
     Nob_String_Builder src_sb = {0};
@@ -243,17 +292,20 @@ bool rwildcard(const char *path, const char *suffix, void (*fn)(const char*)) {
                 nob_sb_append_cstr(&src_sb, children.items[i]);
                 nob_sb_append_null(&src_sb);
 
-                if (!rwildcard(src_sb.items, suffix, fn)) {
+                if (!call_for_func(src_sb.items, cond, fn, wanted_output, call_for_dirs)) {
                     nob_return_defer(false);
+                }
+
+                if (call_for_dirs && (cond(src_sb.items) == wanted_output)) {
+                    fn(src_sb.items);
                 }
             }
         } break;
 
         case NOB_FILE_REGULAR: {
             String_View path_sv = sv_from_cstr(path);
-            if (sv_end_with(path_sv, suffix)) {
+            if (cond(path) == wanted_output) {
                 fn(path);
-                nob_return_defer(false);
             }
         } break;
 
@@ -276,8 +328,26 @@ defer:
     return result;
 }
 
+bool call_for_suffix(const char *dir, const char *suffix, void (*fn)(const char*), bool call_for_dirs) {
+    return call_for_func(dir, (bool (*)(const char*))sv_end_with, fn, true, call_for_dirs);
+}
+
+bool _function_that_always_returns_true(const char *path) { return true; }
+
+bool call_for_all(const char *dir, void (*fn)(const char*), bool call_for_dirs) {
+    return call_for_func(dir, _function_that_always_returns_true, fn, true, call_for_dirs);
+}
+
 void cmd_print(Cmd cmd) {
     int i = 0;
     for_range(i, 0, cmd.count) printf("%s ", cmd.items[i]); printf("\n");
+}
+
+// Deletes file at `path`. Can be used as a callback for `call_for_*` functions. 
+void delete_file(const char *path) {
+    if (remove(path) != 0) {
+        printf("[✗] Failed to remove file: %s\nPerhaps a permission issue?", path);
+        exit(1);
+    }
 }
 
