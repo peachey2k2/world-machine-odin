@@ -1,6 +1,6 @@
 package main
 
-import "engine/core"
+import "engine"
 
 main::proc() {
     core.init()
