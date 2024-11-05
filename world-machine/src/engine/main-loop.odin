@@ -1,14 +1,13 @@
-package core
+package engine
 
 // import "vendor:raylib"
 import sdl "vendor:sdl2"
 
 import "core:fmt"
 
-window_should_close := false
 
 main_loop::proc() {
-    for (window_should_close == false) {
+    for (m_window_should_close == false) {
         handle_events()
         render()
     }
@@ -27,21 +26,21 @@ handle_events::proc() {
 }
 
 render::proc() {
-    sdl.RenderClear(renderer)
+    sdl.RenderClear(m_renderer)
     // draw stuff here
-    sdl.RenderPresent(renderer)
+    sdl.RenderPresent(m_renderer)
     sdl.Delay(16)
 }
 
 on_quit::proc() {
-    window_should_close = true
+    m_window_should_close = true
 }
 
 on_key_down::proc(event:^sdl.Event) {
     key_event := event.key
     fmt.printf("Key down: %d\n", key_event.keysym.scancode)
     #partial switch key_event.keysym.scancode {
-        case sdl.SCANCODE_ESCAPE: window_should_close = true
+        case sdl.SCANCODE_ESCAPE: m_window_should_close = true
     }
 }
 
@@ -49,3 +48,7 @@ on_key_up::proc(event:^sdl.Event) {
     key_event := event.key
     fmt.printf("Key up: %d\n", key_event.keysym.scancode)
 }
+
+world_should_tick::proc() -> bool { return m_world_should_tick }
+world_should_update::proc() -> bool { return m_world_should_update }
+
