@@ -8,4 +8,4 @@ endif
 
 nobInit:
 	cc -o nob nob.c
-	$(info [✓] Bootstapped nob. Run ./nob for help.)
+	$(info [✓] Bootstapped nob. Run `./nob help` for help.)
