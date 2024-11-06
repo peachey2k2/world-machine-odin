@@ -1,10 +1,7 @@
 package engine
 
-import "../../modloader"
-import "../../consts"
-import "../../utils/signals"
-import "../ticks"
-import "../world"
+import "../consts"
+import "../utils"
 
 import "core:os"
 import "core:fmt"
@@ -26,21 +23,26 @@ import sdl "vendor:sdl2"
 @(private) m_world_thread : ^thread.Thread
 
 init::proc() {
-    signals.init()
+    utils.init_signals()
+    utils.init_logger()
     set_ext_vars()
     init_sdl()
 
     // modloader.load_mods()
     // modloader.init_functions()
 
-    // render.init_atlas()
+    init_block_atlas()
     // modloader.init_blocks()
+
+    init_world()
 
     m_world_should_tick = true
     m_ticks_thread = thread.create_and_start(tick_loop)
 
     m_world_should_update = true
     m_world_thread = thread.create_and_start(world_loop)
+
+    main_loop()
 }
 
 init_sdl::proc() {
@@ -83,7 +85,7 @@ init_sdl::proc() {
 }
 
 deinit::proc() {
-    signals.deinit_everything()
+    utils.deinit_everything()
 
     m_world_should_tick = false
     m_world_should_update = false
