@@ -1,10 +1,24 @@
-package signals
+package utils
 
 import "core:strings"
 import "core:fmt"
 import "core:slice"
 
-import "../array"
+init_signals::proc() {
+    for i in Signals {
+        engine_signals[i] = EngineSignal{
+            listeners = new([dynamic]proc())
+        }
+    }
+
+    defer_deinit(deinit_signals)
+}
+
+@(private) deinit_signals::proc() {
+    for i in Signals {
+        delete(engine_signals[i].listeners^)
+    }
+}
 
 create::proc{
     create_signal,
@@ -58,7 +72,7 @@ disconnect_signal::proc(name:string, from:proc()) -> (ok:bool) {
     signal, has := &signals[name]
     if !has do return false
 
-    has = array.remove_elem(signal.listeners, from)
+    has = remove_elem(signal.listeners, from)
     if !has do return false
 
     return true
@@ -101,7 +115,7 @@ connect_engine_signal::proc(signal:Signals, to:proc()) -> (ok:bool) {
 }
 
 disconnect_engine_signal::proc(signal:Signals, from:proc()) -> (ok:bool) {
-    has := array.remove_elem(engine_signals[signal].listeners, from)
+    has := remove_elem(engine_signals[signal].listeners, from)
     if !has do return false
 
     return true

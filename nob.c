@@ -67,10 +67,10 @@ char** passed_args = NULL;
 int passed_args_count = 0;
 
 bool debug = false;
-
 bool sanitize_address = false;
 bool sanitize_memory = false;
 bool sanitize_thread = false;
+bool benchmarks = false;
 
 
 // --------------------|  Build Functions  |--------------------
@@ -80,6 +80,7 @@ int main(int argc, char **argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
     
     mkdir_if_not_exists("bin");
+    mkdir_if_not_exists("logs");
 
     if (argc == 1) {
         printf("No arguments given.\nUse `./nob help` for info.\n");
@@ -90,11 +91,14 @@ int main(int argc, char **argv) {
     for_range(i, 1, argc) {
         char* arg = argv[i];
 
+        // argument passthrough
         ifeq(arg, "--") {
             passed_args = argv + i + 1;
             passed_args_count = argc - i - 1;
             break;
         }
+
+        // commands
         else ifeq(arg, "help") {
             show_help();
             return 0;
@@ -112,7 +116,7 @@ int main(int argc, char **argv) {
             add_func(clean);
         }
 
-
+        // options
         else ifeq(arg, "-dbg") {
             debug = true;
         }
@@ -124,6 +128,9 @@ int main(int argc, char **argv) {
         }
         else ifeq(arg, "-tsan") {
             sanitize_thread = true;
+        }
+        else ifeq(arg, "-bench") {
+            benchmarks = true;
         }
     }
 
@@ -172,6 +179,10 @@ void build() {
         cmd_append(&cmd, "-debug");
     } else {
         cmd_append(&cmd, "-disable-assert");
+    }
+
+    if (benchmarks) {
+        cmd_append(&cmd, "-define:ENABLE_BENCHMARKS=true");
     }
 
     int i = 0;
@@ -225,9 +236,10 @@ void show_help() {
         "\n"
         "Build options:\n"
         "  -dbg      Enable debug mode and disable asserts\n"
-        "  -asan     Enable Address Sanitizer\n"
-        "  -msan     Enable Memory Sanitizer\n"
-        "  -tsan     Enable Thread Sanitizer\n"
+        "  -asan     Enable address sanitizer\n"
+        "  -msan     Enable memory sanitizer\n"
+        "  -tsan     Enable thread sanitizer\n"
+        "  -bench    Enable benchmarks\n"
         "  --        Passes all arguments after it to the Odin compiler\n"
         "\n"
     );

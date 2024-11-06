@@ -1,4 +1,4 @@
-package array
+package utils
 
 find_elem::proc(arr: ^$D/[dynamic]$T, elem: T) -> (idx:int, ok:bool) {
     for &item, idx in arr {

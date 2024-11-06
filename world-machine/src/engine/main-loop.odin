@@ -5,9 +5,13 @@ import sdl "vendor:sdl2"
 
 import "core:fmt"
 
+import "../utils"
+
 
 main_loop::proc() {
     for (m_window_should_close == false) {
+        bm := utils.bench_start("main_loop")
+        defer utils.bench_end(bm)
         handle_events()
         render()
     }
