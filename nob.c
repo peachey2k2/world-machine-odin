@@ -13,6 +13,7 @@ const char *WMAC_DEPENDENCIES = "./bin/deps.json";
 
 // #define VERBOSE_TIMINGS
 #define WARNINGS_AS_ERRORS
+#define AGGRESSIVE_OPTIMIZATION
 
 
 // --------------------|  Function Declarations  |--------------------
@@ -153,17 +154,9 @@ void build() {
         concat("-out:", WMAC_EXECUTABLE),
     );
 
-    #ifdef MEMORY_SANITIZER
-    cmd_append(&cmd, "-sanitize:memory");
-    #endif
-
-    #ifdef ADDRESS_SANITIZER
-    cmd_append(&cmd, "-sanitize:address");
-    #endif
-
-    #ifdef THREAD_SANITIZER
-    cmd_append(&cmd, "-sanitize:thread");
-    #endif
+    if (sanitize_memory)  cmd_append(&cmd, "-sanitize:memory");
+    if (sanitize_address) cmd_append(&cmd, "-sanitize:address");
+    if (sanitize_thread)  cmd_append(&cmd, "-sanitize:thread");
 
     #ifdef VERBOSE_TIMINGS
     cmd_append(&cmd, "-show-more-timings");
@@ -178,7 +171,13 @@ void build() {
     if (debug) {
         cmd_append(&cmd, "-debug");
     } else {
-        cmd_append(&cmd, "-disable-assert");
+        cmd_append(&cmd, "-disable-assert",
+        #ifdef AGGRESSIVE_OPTIMIZATION
+        "-o:aggressive"
+        #else
+        "-o:speed"
+        #endif
+        );
     }
 
     if (benchmarks) {

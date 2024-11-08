@@ -25,8 +25,11 @@ init_logger::proc() {
     time.to_string_hms(now, timestamp[time.MIN_YY_DATE_LEN+1:])
     timestamp[time.MIN_YY_DATE_LEN] = '_'
 
+    filename := strings.concatenate([]string{"logs/log-", string(timestamp[:]), ".txt"})
+    defer delete(filename)
+
     err : os.Error
-    log_file_handle, err = os.open(strings.concatenate([]string{"logs/log-", string(timestamp[:]), ".txt"}), os.O_CREATE | os.O_RDWR, 0o644)
+    log_file_handle, err = os.open(filename, os.O_CREATE | os.O_RDWR, 0o644)
     if err != nil {
         fmt.printf("Error opening log file: %s\n", err)
         os.exit(1)
@@ -55,16 +58,19 @@ log::proc(level:LogLevel, msg:..any) {
     }
 
     log_msg := new(strings.Builder)
+    defer { strings.builder_destroy(log_msg); free(log_msg) }
     fmt.sbprintln(log_msg, ..msg)
+
+    full_message := strings.concatenate([]string{timestamp, " ", log_level, " ", strings.to_string(log_msg^)})
+    defer delete(full_message)
+
     bytes_written, err := os.write(
         log_file_handle,
-        transmute([]u8) strings.concatenate([]string{timestamp, " ", log_level, " ", strings.to_string(log_msg^)})
+        transmute([]u8) full_message
     )
     if err != nil {
         fmt.printf("Error writing to log file: %s\n", err)
     }
-    // fmt.printf("%d\n", bytes_written)
-    // fmt.println(log_msg)
 }
 
 when ENABLE_BENCHMARKS {
@@ -84,11 +90,7 @@ when ENABLE_BENCHMARKS {
 
     bench_end::proc(b:^BenchmarkObject) {
         elapsed := time.tick_since(b.start)
-        hrs, mins, secs, ns := time.precise_clock(elapsed)
-        log(.BENCHMARK,
-            b.name, "took",
-            hrs, "hrs,", mins, "mins,", secs, "secs,", ns, "ns."
-        )
+        log(.BENCHMARK, b.name, "took", elapsed)
     }
 
 } else {

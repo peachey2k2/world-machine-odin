@@ -1,15 +1,19 @@
 package engine
 
-import "../consts"
 import "../utils"
 
 import "core:os"
 import "core:fmt"
 import "core:strings"
 import "core:thread"
+import "core:time"
 
 // import "vendor:raylib"
 import sdl "vendor:sdl2"
+
+APP_NAME : cstring = "World Machine"
+VERSION := "0.0.1"
+WINDOW_SIZE := [2]i32{800, 450}
 
 @(private) m_window : ^sdl.Window
 @(private) m_renderer : ^sdl.Renderer
@@ -42,6 +46,7 @@ init::proc() {
     m_world_should_update = true
     m_world_thread = thread.create_and_start(world_loop)
 
+    m_last_frame_tick = time.tick_now()
     main_loop()
 }
 
@@ -62,9 +67,9 @@ init_sdl::proc() {
     }
 
     m_window = sdl.CreateWindow(
-        consts.name,
+        APP_NAME,
         sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
-        consts.window_size.x, consts.window_size.y,
+        WINDOW_SIZE.x, WINDOW_SIZE.y,
         sdl.WINDOW_SHOWN
     )
     if (m_window == nil) {
@@ -72,7 +77,7 @@ init_sdl::proc() {
         os.exit(1)
     }
 
-    m_renderer = sdl.CreateRenderer(m_window, -1, sdl.RENDERER_ACCELERATED)
+    m_renderer = sdl.CreateRenderer(m_window, -1, sdl.RENDERER_ACCELERATED | sdl.RENDERER_PRESENTVSYNC)
     if (m_renderer == nil) {
         fmt.printf("Renderer could not be created! SDL_Error: %s\n", sdl.GetError())
         os.exit(1)
