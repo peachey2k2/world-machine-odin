@@ -4,16 +4,27 @@ package engine
 import sdl "vendor:sdl2"
 
 import "core:fmt"
+import "core:time"
+import "core:math"
 
 import "../utils"
+
+m_mean_framerate := i64(0)
+m_mean_frame_time := time.Duration{}
+
+m_last_frame_times := [20]time.Duration{}
+m_current_frame := u64(0)
+m_last_frame_tick := time.Tick{}
 
 
 main_loop::proc() {
     for (m_window_should_close == false) {
         bm := utils.bench_start("main_loop")
         defer utils.bench_end(bm)
+        
         handle_events()
         render()
+        update_framerate()
     }
 }
 
@@ -33,7 +44,16 @@ render::proc() {
     sdl.RenderClear(m_renderer)
     // draw stuff here
     sdl.RenderPresent(m_renderer)
-    sdl.Delay(16)
+}
+
+update_framerate::proc() {
+    m_current_frame += 1
+    cur_tick := time.tick_now()
+    m_last_frame_times[m_current_frame % 20] = time.tick_diff(m_last_frame_tick, cur_tick)
+    m_last_frame_tick = cur_tick
+
+    m_mean_frame_time = math.sum(m_last_frame_times[:]) / 20
+    m_mean_framerate = 1e9 / transmute(i64)m_mean_frame_time
 }
 
 on_quit::proc() {
