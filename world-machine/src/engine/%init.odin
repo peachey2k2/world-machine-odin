@@ -15,16 +15,16 @@ APP_NAME : cstring = "World Machine"
 VERSION := "0.0.1"
 WINDOW_SIZE := [2]i32{800, 450}
 
-@(private) m_window : ^sdl.Window
-@(private) m_renderer : ^sdl.Renderer
+@(private) _window : ^sdl.Window
+@(private) _renderer : ^sdl.Renderer
 
-@(private) m_window_should_close := false
+@(private) _window_should_close := false
 
-@(private) m_world_should_tick := false
-@(private) m_ticks_thread : ^thread.Thread
+@(private) _world_should_tick := false
+@(private) _ticks_thread : ^thread.Thread
 
-@(private) m_world_should_update := false
-@(private) m_world_thread : ^thread.Thread
+@(private) _world_should_update := false
+@(private) _world_thread : ^thread.Thread
 
 init::proc() {
     utils.init_signals()
@@ -36,17 +36,17 @@ init::proc() {
     // modloader.init_functions()
 
     init_block_atlas()
-    // modloader.init_blocks()
+    init_mod_blocks()
 
     init_world()
 
-    m_world_should_tick = true
-    m_ticks_thread = thread.create_and_start(tick_loop)
+    _world_should_tick = true
+    _ticks_thread = thread.create_and_start(tick_loop)
 
-    m_world_should_update = true
-    m_world_thread = thread.create_and_start(world_loop)
+    _world_should_update = true
+    _world_thread = thread.create_and_start(world_loop)
 
-    m_last_frame_tick = time.tick_now()
+    _last_frame_tick = time.tick_now()
     main_loop()
 }
 
@@ -66,40 +66,40 @@ init_sdl::proc() {
         os.exit(1)
     }
 
-    m_window = sdl.CreateWindow(
+    _window = sdl.CreateWindow(
         APP_NAME,
         sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED,
         WINDOW_SIZE.x, WINDOW_SIZE.y,
         sdl.WINDOW_SHOWN
     )
-    if (m_window == nil) {
+    if (_window == nil) {
         fmt.printf("Window could not be created! SDL_Error: %s\n", sdl.GetError())
         os.exit(1)
     }
 
-    m_renderer = sdl.CreateRenderer(m_window, -1, sdl.RENDERER_ACCELERATED | sdl.RENDERER_PRESENTVSYNC)
-    if (m_renderer == nil) {
+    _renderer = sdl.CreateRenderer(_window, -1, sdl.RENDERER_ACCELERATED | sdl.RENDERER_PRESENTVSYNC)
+    if (_renderer == nil) {
         fmt.printf("Renderer could not be created! SDL_Error: %s\n", sdl.GetError())
         os.exit(1)
     }
 
     // sdl.FillRect(surface, nil, sdl.MapRGB(surface.format, 0xFF, 0x00, 0xFF))
-    sdl.SetRenderDrawColor(m_renderer, 0xFF, 0x00, 0xFF, 0xFF)
-    sdl.RenderFillRect(m_renderer, nil)
-    sdl.RenderPresent(m_renderer)
+    sdl.SetRenderDrawColor(_renderer, 0xFF, 0x00, 0xFF, 0xFF)
+    sdl.RenderFillRect(_renderer, nil)
+    sdl.RenderPresent(_renderer)
 }
 
 deinit::proc() {
     utils.deinit_everything()
 
-    m_world_should_tick = false
-    m_world_should_update = false
+    _world_should_tick = false
+    _world_should_update = false
 
-    sdl.DestroyRenderer(m_renderer)
-    sdl.DestroyWindow(m_window)
+    sdl.DestroyRenderer(_renderer)
+    sdl.DestroyWindow(_window)
     sdl.Quit()
 
-    thread.join_multiple(m_ticks_thread, m_world_thread)
+    thread.join_multiple(_ticks_thread, _world_thread)
 
     os.exit(0)
 }
