@@ -20,10 +20,6 @@ init_signals::proc() {
     }
 }
 
-create::proc{
-    create_signal,
-}
-
 connect::proc{
     connect_signal,
     connect_engine_signal,
@@ -40,7 +36,6 @@ emit::proc{
 }
 
 // Basic event system. Accesed with strings
-
 Signal::struct {
     name : string,
     listeners : ^[dynamic]proc()
