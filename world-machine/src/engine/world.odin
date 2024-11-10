@@ -3,6 +3,7 @@ package engine
 import "../utils"
 import "core:math/noise"
 import "core:fmt"
+import "core:math"
 
 RENDER_DISTANCE := i32(8)
 WORLD_HEIGHT := i32(256)
@@ -108,10 +109,9 @@ generate_chunk::proc(pos: ChunkPos) {
     _chunks[pos] = construct_chunk(chunk_layout)
 }
 
-construct_chunk::proc(layout: ChunkLayout) -> Chunk {
+construct_chunk::proc(layout: ChunkLayout) -> (chunk: Chunk) {
     layout := layout
     block_counts := map[BlockID]u32{}
-    chunk := Chunk{}
 
     for block in layout {
         block_counts[block] += 1
@@ -152,6 +152,59 @@ remove_chunk::proc(pos: ChunkPos) {
         utils.release(&_large_chunk_pool, chunk.large)
     }
 }
+
+world_to_chunk_space::proc {
+    world_to_chunk_space_blockpos,
+    world_to_chunk_space_position,
+}
+
+world_to_chunk_space_blockpos::proc(pos: BlockPos) -> (which_chunk: ChunkPos, at_where: ChunkedBlockPos) {
+    which_chunk = ChunkPos{
+        pos.x / 16,
+        pos.y / 16,
+        pos.z / 16,
+    }
+    at_where = ChunkedBlockPos{
+        u8(pos.x % 16),
+        u8(pos.y % 16),
+        u8(pos.z % 16),
+    }
+    return which_chunk, at_where
+}
+
+world_to_chunk_space_position::proc(pos: Position) -> (which_chunk: ChunkPos, at_where: ChunkedPosition) {
+    which_chunk = ChunkPos{
+        cast(i32)math.floor(pos.x / 16),
+        cast(i32)math.floor(pos.y / 16),
+        cast(i32)math.floor(pos.z / 16),
+    }
+    at_where = ChunkedPosition{
+        math.remainder(pos.x, 16),
+        math.remainder(pos.y, 16),
+        math.remainder(pos.z, 16),
+    }
+    return which_chunk, at_where
+}
+
+change_block::proc(at: BlockPos, to: BlockID) {
+    // TODO: Implement
+}
+
+get_block::proc(at: BlockPos) -> (block: BlockID) {
+    chunk_pos, block_pos_in_chunk := world_to_chunk_space(at)
+
+    chunk, has := _chunks[chunk_pos]
+    if !has do return 0 // TODO: handle this better
+
+    if chunk.large != nil {
+        return chunk.large.data[block_pos_in_chunk.x + block_pos_in_chunk.y*16 + block_pos_in_chunk.z*16*16]
+    } else {
+        idx := chunk.small.data[block_pos_in_chunk.x + block_pos_in_chunk.y*16 + block_pos_in_chunk.z*16*16]
+        return chunk.small.blocks[idx]
+    }
+}
+
+// find_extremes::proc // TODO: Implement
 
 
 
