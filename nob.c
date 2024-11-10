@@ -22,6 +22,8 @@ void build();
 void run();
 void check();
 void clean();
+void build_vendor();
+void clean_vendor();
 
 void show_help();
 
@@ -46,7 +48,7 @@ void delete_file(const char *path);
         (sizeof((const char*[]){__VA_ARGS__})/sizeof(const char*))          \
     );                                                                      \
     if (!cmd_run_sync(immediate_cmd)) exit(1);                              \
-    immediate_cmd.count = 0;                                                \
+    immediate_cmd.count = 0                                                 \
 
 
 // --------------------|  Types  |--------------------
@@ -115,6 +117,12 @@ int main(int argc, char **argv) {
         }
         else ifeq(arg, "clean") {
             add_func(clean);
+        }
+        else ifeq(arg, "build-vendor") {
+            add_func(build_vendor);
+        }
+        else ifeq(arg, "clean-vendor") {
+            add_func(clean_vendor);
         }
 
         // options
@@ -218,6 +226,12 @@ void clean() {
     }
 
     printf("[✓] Clean successful.\n");
+}
+
+void build_vendor() {
+}
+
+void clean_vendor() {
 }
 
 void show_help() {

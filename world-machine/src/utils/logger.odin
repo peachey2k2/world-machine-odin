@@ -80,26 +80,26 @@ when ENABLE_BENCHMARKS {
         start : time.Tick
     }
 
-
-    bench_start::proc(name:string) -> (^BenchmarkObject) {
+    bench_start::proc(name: string) -> (^BenchmarkObject) {
         bm := new(BenchmarkObject)
         bm.name = name
         bm.start = time.tick_now()
         return bm
     }
 
-    bench_end::proc(b:^BenchmarkObject) {
+    bench_end::proc(b: ^BenchmarkObject) {
         elapsed := time.tick_since(b.start)
         log(.BENCHMARK, b.name, "took", elapsed)
+        free(b)
     }
 
 } else {
 
-    bench_start::proc(name:string) -> (^any) {
+    bench_start::proc(name: string) -> (rawptr) {
         return nil
     }
 
-    bench_end::proc(b:^any) {
+    bench_end::proc(b: rawptr) {
     }
     
 }
