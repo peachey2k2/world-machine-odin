@@ -17,7 +17,8 @@ _chunks_to_generate : utils.OneToOneQueue(ChunkPos)
 _chunks_to_remove : utils.OneToOneQueue(ChunkPos)
 _chunks_to_generate_at : utils.OneToOneQueue(ChunkPos)
 
-// _small_chunk_pool : mem.Dynamic_Arena
+_small_chunk_pool : utils.ObjectPool(SmallChunk)
+_large_chunk_pool : utils.ObjectPool(LargeChunk)
 
 init_world::proc() {
     bm := utils.bench_start("init_world")
@@ -26,6 +27,9 @@ init_world::proc() {
     _chunks_to_generate = utils.create_one_to_one_queue(ChunkPos)
     _chunks_to_remove = utils.create_one_to_one_queue(ChunkPos)
     _chunks_to_generate_at = utils.create_one_to_one_queue(ChunkPos)
+
+    _small_chunk_pool = utils.create_pool(SmallChunk, 16)
+    _large_chunk_pool = utils.create_pool(LargeChunk, 16)
     
     clear(&_chunks)
     utils.enqueue(&_chunks_to_generate_at, ChunkPos{0,0,0})
@@ -105,6 +109,7 @@ generate_chunk::proc(pos: ChunkPos) {
 }
 
 construct_chunk::proc(layout: ChunkLayout) -> Chunk {
+    layout := layout
     block_counts := map[BlockID]u32{}
     chunk := Chunk{}
 
@@ -113,11 +118,40 @@ construct_chunk::proc(layout: ChunkLayout) -> Chunk {
     }
 
     if len(block_counts) > 255 {
-        
+        chunk.large, _ = utils.acquire(&_large_chunk_pool)
+        chunk.small = nil
+        copy(chunk.large.data[:], layout[:])
+    } else {
+        chunk.small, _ = utils.acquire(&_small_chunk_pool)
+        chunk.large = nil
+    
+        i := u32(0)
+        for id, &count in block_counts {
+            append(&chunk.small.blocks, id)
+            // small.blocks is only a 1-way conversion, so we do this instead
+            i += 1
+            count = i // keep in mind this starts from 1, 0 is reserved for air.
+        }
+    
+        for i in 0..<16*16*16 {
+            idx := layout[i]
+            chunk.small.data[i] = u8(idx == 0 ? 0 : block_counts[idx])
+        }
     }
+    return chunk
 }
 
 remove_chunk::proc(pos: ChunkPos) {
+    chunk, has := _chunks[pos]
+    if !has do return
 
+    delete_key(&_chunks, pos)
+    if chunk.small != nil {
+        utils.release(&_small_chunk_pool, chunk.small)
+    } else {
+        utils.release(&_large_chunk_pool, chunk.large)
+    }
 }
+
+
 

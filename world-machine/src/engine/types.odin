@@ -1,10 +1,21 @@
 package engine
 
+// Position of a chunk
 ChunkPos::[3]i32 
+
+// Position of a block in __world__ space
 BlockPos::[3]u32
+
+// Position of a block in __chunk__ space
+InChunkPos::[3]u8
+
+// Position of an entity or a point in world space
 Position::[3]f64
+
+// Velocity of an entity
 Velocity::[3]f64
 
+// BlockIDs are created at runtime, and are used to index into the block atlas
 BlockID::u32
 
 Range::struct($T:typeid) {
@@ -25,11 +36,11 @@ Block::struct {
 
 SmallChunk::struct {
     data: [16*16*16]u8,
-    blocks: [dynamic]u64,
+    blocks: [dynamic]BlockID,
 }
 
 LargeChunk::struct {
-    data: [16*16*16]u32,
+    data: [16*16*16]BlockID,
 }
 
 // This is the main chunk struct. Small chunks are used when the chunk has
