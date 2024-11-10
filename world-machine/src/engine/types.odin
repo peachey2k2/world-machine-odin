@@ -4,13 +4,16 @@ package engine
 ChunkPos::[3]i32 
 
 // Position of a block in __world__ space
-BlockPos::[3]u32
+BlockPos::[3]i32
 
 // Position of a block in __chunk__ space
-InChunkPos::[3]u8
+ChunkedBlockPos::[3]u8
 
-// Position of an entity or a point in world space
+// Position of an entity or a point in __world__ space
 Position::[3]f64
+
+// Position of an entity or a point in __chunk__ space
+ChunkedPosition::[3]f64
 
 // Velocity of an entity
 Velocity::[3]f64
