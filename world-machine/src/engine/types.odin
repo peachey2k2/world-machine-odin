@@ -5,6 +5,8 @@ BlockPos::[3]u32
 Position::[3]f64
 Velocity::[3]f64
 
+BlockID::u32
+
 Range::struct($T:typeid) {
     min, max : T,
 }
@@ -27,7 +29,7 @@ SmallChunk::struct {
 }
 
 LargeChunk::struct {
-    data: [16*16*16]u64,
+    data: [16*16*16]u32,
 }
 
 // This is the main chunk struct. Small chunks are used when the chunk has
@@ -39,7 +41,7 @@ Chunk::struct {
 }
 
 // Used when constructing a chunk
-ChunkLayout:: [16*16*16]u64
+ChunkLayout:: [16*16*16]u32
 
 BlockFaces::enum {
     NORTH, EAST, TOP, SOUTH, WEST, BOTTOM,
