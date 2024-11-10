@@ -33,6 +33,7 @@ Queue::struct($T:typeid) {
 }
 
 // Create a new queue for given type.
+@(require_results)
 create_queue::proc($T:typeid, capacity:int = 16) -> Queue(T) {
     data_ptr, _ := mem.alloc(capacity * size_of(T))
     result := Queue(T){
@@ -56,7 +57,7 @@ expand_regular_queue::proc(q: ^Queue($T)) {
     sync.atomic_store(&q.expanding, true)
     new_ptr, _ := mem.resize(q.data, q.capacity*size_of(T), q.capacity*2*size_of(T))
     q.data = transmute(^T)new_ptr
-    copy((transmute(^T)q.data)[q.tail + q.capacity:], (transmute(^T)q.data)[q.tail:])
+    copy(q.data[q.tail + q.capacity:q.capacity*2], q.data[q.tail:q.capacity])
     q.capacity *= 2
     sync.atomic_store(&q.expanding, false)
 }
@@ -64,7 +65,7 @@ expand_regular_queue::proc(q: ^Queue($T)) {
 // Add an element at the end of the queue
 enqueue_regular::proc(q: ^Queue($T), elem: T) {
     assert(q.data != nil, "Queue is not initialized or destroyed")
-    sync.futex_wait(transmute(^sync.Futex)&q.expanding, false)
+    sync.futex_wait(transmute(^sync.Futex)&q.expanding, transmute(u32)b32(false))
     if q.head == (q.tail+1) % q.capacity do expand_queue(q)
     q.data[q.tail] = elem
     sync.atomic_store(&q.tail, (q.tail + 1) % q.capacity)
@@ -73,7 +74,7 @@ enqueue_regular::proc(q: ^Queue($T), elem: T) {
 // Remove and return the first element from the queue
 dequeue_regular::proc(q: ^Queue($T)) -> (elem: T, ok: bool) {
     assert(q.data != nil, "Queue is not initialized or destroyed")
-    sync.futex_wait(transmute(^sync.Futex)&q.expanding, false)
+    sync.futex_wait(transmute(^sync.Futex)&q.expanding, transmute(u32)b32(false))
     if is_empty(q) do return T{}, false
     elem = q.data[q.head]
     sync.atomic_store(&q.head, (q.head + 1) % q.capacity)
@@ -93,6 +94,7 @@ OneToOneQueue::struct($T:typeid) {
     head, tail: int,
 }
 
+@(require_results)
 create_one_to_one_queue::proc($T:typeid, capacity:int = 16) -> OneToOneQueue(T) {
     data_ptr, _ := mem.alloc(capacity * size_of(T))
     result := OneToOneQueue(T){
@@ -113,7 +115,7 @@ destroy_one_to_one_queue::proc(q: ^OneToOneQueue($T)) {
 expand_one_to_one_queue::proc(q: ^OneToOneQueue($T)) {
     new_ptr, _ := mem.resize(q.data, q.capacity*size_of(T), q.capacity*2*size_of(T))
     q.data = transmute(^T)new_ptr
-    copy((transmute(^T)q.data)[q.tail + q.capacity:], (transmute(^T)q.data)[q.tail:])
+    copy(q.data[q.tail + q.capacity:q.capacity*2], q.data[q.tail:q.capacity])
     q.capacity *= 2
 }
 
