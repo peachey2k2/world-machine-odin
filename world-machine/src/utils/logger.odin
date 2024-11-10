@@ -18,6 +18,10 @@ LogLevel::enum {
 }
 
 init_logger::proc() {
+    if !os.is_dir("logs") {
+        os.make_directory("logs", 0o755)
+    }
+
     now := time.now()
     timestamp := [time.MIN_YY_DATE_LEN + time.MIN_HMS_LEN + 1]u8{}
 

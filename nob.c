@@ -83,7 +83,6 @@ int main(int argc, char **argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
     
     mkdir_if_not_exists("bin");
-    mkdir_if_not_exists("logs");
 
     if (argc == 1) {
         printf("No arguments given.\nUse `./nob help` for info.\n");
