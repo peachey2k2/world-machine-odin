@@ -60,12 +60,13 @@ expand_regular_queue::proc(q: ^Queue($T)) {
     copy(q.data[q.tail + q.capacity:q.capacity*2], q.data[q.tail:q.capacity])
     q.capacity *= 2
     sync.atomic_store(&q.expanding, false)
+    sync.futex_broadcast(transmute(^sync.Futex)&q.expanding)
 }
 
 // Add an element at the end of the queue
 enqueue_regular::proc(q: ^Queue($T), elem: T) {
     assert(q.data != nil, "Queue is not initialized or destroyed")
-    sync.futex_wait(transmute(^sync.Futex)&q.expanding, transmute(u32)b32(false))
+    sync.futex_wait(transmute(^sync.Futex)&q.expanding, transmute(u32)b32(true))
     if q.head == (q.tail+1) % q.capacity do expand_queue(q)
     q.data[q.tail] = elem
     sync.atomic_store(&q.tail, (q.tail + 1) % q.capacity)
@@ -74,7 +75,7 @@ enqueue_regular::proc(q: ^Queue($T), elem: T) {
 // Remove and return the first element from the queue
 dequeue_regular::proc(q: ^Queue($T)) -> (elem: T, ok: bool) {
     assert(q.data != nil, "Queue is not initialized or destroyed")
-    sync.futex_wait(transmute(^sync.Futex)&q.expanding, transmute(u32)b32(false))
+    sync.futex_wait(transmute(^sync.Futex)&q.expanding, transmute(u32)b32(true))
     if is_empty(q) do return T{}, false
     elem = q.data[q.head]
     sync.atomic_store(&q.head, (q.head + 1) % q.capacity)
