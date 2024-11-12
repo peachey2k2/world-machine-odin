@@ -1,13 +1,15 @@
 package engine
 
-// import "vendor:raylib"
 import sdl "vendor:sdl2"
+import gl "vendor:OpenGL"
 
 import "core:fmt"
 import "core:time"
 import "core:math"
 
-import "../utils"
+import "src:utils"
+
+import "extra-vendor:imgui/imgui_impl_sdl2"
 
 _mean_framerate := i64(0)
 _mean_frame_time := time.Duration{}
@@ -21,10 +23,17 @@ main_loop::proc() {
     for (_window_should_close == false) {
         bm := utils.bench_start("main_loop")
         defer utils.bench_end(bm)
+
+        gl.Viewport(0, 0, WINDOW_SIZE[0], WINDOW_SIZE[1])
+        gl.ClearColor(0.45, 0.55, 0.60, 1.00)
+        gl.Clear(gl.COLOR_BUFFER_BIT)
         
         handle_events()
         render()
+        draw_ui()
         update_framerate()
+        
+        sdl.GL_SwapWindow(_window)
     }
 }
 
@@ -32,6 +41,7 @@ handle_events::proc() {
     event : sdl.Event
     sdl.PumpEvents()
     for sdl.PollEvent(&event) {
+        imgui_impl_sdl2.ProcessEvent(&event)
         #partial switch event.type {
         case .QUIT:    on_quit()
         case .KEYDOWN: on_key_down(&event)
@@ -41,9 +51,9 @@ handle_events::proc() {
 }
 
 render::proc() {
-    sdl.RenderClear(_renderer)
+    
     // draw stuff here
-    sdl.RenderPresent(_renderer)
+    
 }
 
 update_framerate::proc() {

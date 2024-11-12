@@ -1,5 +1,7 @@
 package engine
 
+import sdl "vendor:sdl2"
+
 // Position of a chunk
 ChunkPos::[3]i32 
 
@@ -18,8 +20,10 @@ ChunkedPosition::[3]f64
 // Velocity of an entity
 Velocity::[3]f64
 
-// BlockIDs are created at runtime, and are used to index into the block atlas
+// Unique IDs are created at runtime, and are used to index into the block atlas
 BlockID::u32
+ItemID::u32
+TextureID::u32
 
 Range::struct($T:typeid) {
     min, max : T,
@@ -30,11 +34,10 @@ IndirectCommand::struct {
 }
 
 Block::struct {
-    // itemID: u64, not needed, we already can index into it
-    textureID: u32,
+    itemID: ItemID, // needed for conversion
+    textureID: TextureID,
     name: string,
     tooltip: string,
-    texture: string,
 }
 
 SmallChunk::struct {
@@ -85,12 +88,18 @@ MobStats::struct {
 
 ModID::u64
 
+// raw texture data
+Texture::[]u8
+
 InitItemInfo::struct {
     name, tooltip, texture, model: cstring,
 }
 
 InitBlockInfo::struct {
-    name, tooltip, texture, model: cstring,
+    name: cstring,
+    tooltip: cstring,
+    texture: Texture,
+    // model: // TODO: implement this
 }
 
 InitEntityInfo::struct {

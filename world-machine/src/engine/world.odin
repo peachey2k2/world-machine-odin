@@ -1,9 +1,10 @@
 package engine
 
-import "../utils"
 import "core:math/noise"
 import "core:fmt"
 import "core:math"
+
+import "src:utils"
 
 RENDER_DISTANCE := i32(8)
 WORLD_HEIGHT := i32(256)

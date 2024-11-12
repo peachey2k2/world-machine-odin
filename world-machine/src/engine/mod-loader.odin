@@ -3,10 +3,8 @@ package engine
 import "core:path/filepath"
 import "core:os"
 import "core:strings"
-
-// import "core:sys/windows"
-// import "core:sys/posix"
 import "core:dynlib"
+
 
 when ODIN_OS == .Windows {
     SHARED_LIB_EXT :: ".dll"
@@ -22,6 +20,7 @@ MODS_DIRECTORY :: "mods"
 
 m_mod_list := [dynamic]Mod{}
 
+@(private="file")
 current_mod_id : ModID = 1 // 0 is reserved for core
 
 load_all_mods::proc() {
@@ -95,4 +94,8 @@ init_mod_entities::proc() {
             mod.init_entities()
         }
     }
+}
+
+get_current_mod_id::proc() -> ModID {
+    return current_mod_id
 }

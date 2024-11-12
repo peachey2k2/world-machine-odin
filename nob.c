@@ -6,10 +6,13 @@
 
 // --------------------|  Constants/Macros  |--------------------
 
-const char *WMAC_SOURCE = "./world-machine/src";
-const char *WMAC_DESTINATION = "./bin";
-const char *WMAC_EXECUTABLE = "./bin/out";
-const char *WMAC_DEPENDENCIES = "./bin/deps.json";
+#define WMAC_SOURCE         "./world-machine/src"
+#define WMAC_VENDOR         "./world-machine/extra-vendor"
+#define WMAC_DESTINATION    "./bin"
+#define WMAC_EXECUTABLE     WMAC_DESTINATION"/out"
+// const char *WMAC_DEPENDENCIES = "./bin/deps.json"
+
+#define VENDOR "./world-machine/vendor"
 
 // #define VERBOSE_TIMINGS
 #define WARNINGS_AS_ERRORS
@@ -158,7 +161,13 @@ void build() {
         "odin",
         "build",
         WMAC_SOURCE,
-        concat("-out:", WMAC_EXECUTABLE),
+        "-out:"WMAC_EXECUTABLE,
+
+        "-collection:src=./world-machine/src",
+        "-collection:res=./world-machine/res",
+        "-collection:extra-vendor=./world-machine/vendor",
+
+        // "-extra-linker-flags:-L"VENDOR"/cimgui"
     );
 
     if (sanitize_memory)  cmd_append(&cmd, "-sanitize:memory");
@@ -228,9 +237,18 @@ void clean() {
 }
 
 void build_vendor() {
+    // clean_vendor();
+    // cmd_immediate("make", "static", "-C", VENDOR"/cimgui", "CXXFLAGS=-O2 -fno-exceptions -fno-rtti -fno-threadsafe-statics");
+    // copy_file(VENDOR"/cimgui/libcimgui.a", WMAC_VENDOR"/imgui/libcimgui.a");
+    // clean_vendor();
+    // cmd_immediate("make", "static", "-C", VENDOR"/cimgui", "CXXFLAGS=-O2 -fno-exceptions -fno-rtti -fno-threadsafe-statics -g");
+    // copy_file(VENDOR"/cimgui/libcimgui.a", WMAC_VENDOR"/imgui/libcimgui-debug.a");
+    // printf("[✓] Vendor libraries built.\n");
 }
 
 void clean_vendor() {
+    // cmd_immediate("make", "clean", "-C", VENDOR"/cimgui");
+    // printf("[✓] Vendor libraries cleaned.\n");
 }
 
 void show_help() {
