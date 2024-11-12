@@ -90,12 +90,13 @@ EngineSignal::struct {
 }
 
 Signals::enum {
-    FRAME_RENDER,
+    FRAME_START,
+    FRAME_RENDER_WORLD,
+    FRAME_RENDER_UI,
     FRAME_RENDER_DONE,
-    FRAME_UPDATE,
-    FRAME_UPDATE_DONE,
     FRAME_INPUT,
     FRAME_INPUT_DONE,
+    FRAME_END,
 
     TICK_START,
     TICK_MIDDLE,

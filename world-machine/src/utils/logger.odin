@@ -8,6 +8,8 @@ import "core:strings"
 
 ENABLE_BENCHMARKS :: #config(ENABLE_BENCHMARKS, false)
 
+MAXIMUM_KEPT_LOGS := 10
+
 log_file_handle : os.Handle
 
 LogLevel::enum {
@@ -20,6 +22,27 @@ LogLevel::enum {
 init_logger::proc() {
     if !os.is_dir("logs") {
         os.make_directory("logs", 0o755)
+    } else {
+        logs_dir, err := os.open("logs", os.O_RDONLY)
+        if err != nil {
+            fmt.printf("Error opening logs directory: %s\n", err)
+            os.exit(1)
+        }
+        
+        files : []os.File_Info
+        files, err = os.read_dir(logs_dir, MAXIMUM_KEPT_LOGS*2)
+        if err != nil {
+            fmt.printf("Error reading logs directory: %s\n", err)
+            os.exit(1)
+        }
+
+        for file in files {
+            if strings.has_prefix(file.name, "log-") && strings.has_suffix(file.name, ".txt") {
+                os.remove(file.fullpath)
+            }
+        }
+
+        os.file_info_slice_delete(files)
     }
 
     now := time.now()
@@ -74,6 +97,13 @@ log::proc(level:LogLevel, msg:..any) {
     )
     if err != nil {
         fmt.printf("Error writing to log file: %s\n", err)
+    }
+}
+
+assert_and_log::proc(cond: bool, msg: ..any) {
+    if !cond {
+        log(.ERROR, ..msg)
+        os.exit(1)
     }
 }
 
