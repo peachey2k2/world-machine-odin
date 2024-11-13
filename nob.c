@@ -12,6 +12,10 @@
 #define WMAC_EXECUTABLE     WMAC_DESTINATION"/out"
 // const char *WMAC_DEPENDENCIES = "./bin/deps.json"
 
+#define WMAC_COLLECTIONS    "-collection:src=./world-machine/src", \
+                            "-collection:res=./world-machine/res", \
+                            "-collection:extra-vendor=./world-machine/vendor"
+
 #define VENDOR "./world-machine/vendor"
 
 // #define VERBOSE_TIMINGS
@@ -162,11 +166,7 @@ void build() {
         "build",
         WMAC_SOURCE,
         "-out:"WMAC_EXECUTABLE,
-
-        "-collection:src=./world-machine/src",
-        "-collection:res=./world-machine/res",
-        "-collection:extra-vendor=./world-machine/vendor",
-
+        WMAC_COLLECTIONS,
         // "-extra-linker-flags:-L"VENDOR"/cimgui"
     );
 
@@ -222,7 +222,8 @@ void check() {
     cmd_immediate(
         "odin",
         "check",
-        WMAC_SOURCE
+        WMAC_SOURCE,
+        WMAC_COLLECTIONS
     );
     printf("[✓] Syntax check passed.\n");
 }

@@ -73,7 +73,7 @@ enqueue_regular::proc(q: ^Queue($T), elem: T) {
 }
 
 // Remove and return the first element from the queue
-dequeue_regular::proc(q: ^Queue($T)) -> (elem: T, ok: bool) {
+dequeue_regular::proc(q: ^Queue($T)) -> (elem: T, ok: bool) #optional_ok {
     assert(q.data != nil, "Queue is not initialized or destroyed")
     sync.futex_wait(transmute(^sync.Futex)&q.expanding, transmute(u32)b32(true))
     if is_empty(q) do return T{}, false
@@ -127,7 +127,7 @@ enqueue_one_to_one::proc(q: ^OneToOneQueue($T), elem: T) {
     sync.atomic_store(&q.tail, (q.tail + 1) % q.capacity)
 }
 
-dequeue_one_to_one::proc(q: ^OneToOneQueue($T)) -> (elem: T, ok: bool) {
+dequeue_one_to_one::proc(q: ^OneToOneQueue($T)) -> (elem: T, ok: bool) #optional_ok {
     assert(q.data != nil, "Queue is not initialized or destroyed")
     if is_empty(q) do return T{}, false
     elem = q.data[q.head]

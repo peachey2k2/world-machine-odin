@@ -103,8 +103,8 @@ init_sdl::proc() {
 
     gl.load_up_to(4, 3, sdl.gl_set_proc_address) // Load OpenGL functions
 
-    // sdl.SetRelativeMouseMode(true)
-    // sdl.SetWindowGrab(_window, true)
+    sdl.SetRelativeMouseMode(true)
+    sdl.SetWindowGrab(_window, true)
 }
 
 deinit::proc() {
@@ -149,5 +149,11 @@ do_requirement_checks::proc() {
     }
 
     gl.GetIntegerv(gl.MAX_TEXTURE_SIZE, &temp_i32)
-    check(temp_i32, Range(i32){1024, 0}, "MAX_TEXTURE_SIZE")
+    check(temp_i32, Range(i32){8192, 0}, "MAX_TEXTURE_SIZE")
+
+    gl.GetIntegerv(gl.MAX_TEXTURE_UNITS, &temp_i32)
+    check(temp_i32, Range(i32){8, 0}, "MAX_TEXTURE_UNITS")
+
+    gl.GetIntegerv(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS, &temp_i32)
+    check(temp_i32, Range(i32){8, 0}, "MAX_COMBINED_TEXTURE_IMAGE_UNITS")
 }
