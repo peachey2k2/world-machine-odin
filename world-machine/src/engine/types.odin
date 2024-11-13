@@ -25,6 +25,8 @@ BlockID::u32
 ItemID::u32
 TextureID::u32
 
+Color::sdl.Color
+
 Range::struct($T:typeid) {
     min, max : T,
 }
@@ -60,6 +62,12 @@ Chunk::struct {
 // Used when constructing a chunk
 ChunkLayout:: [16*16*16]u32
 
+// raw texture data
+RawTexture::struct {
+    data: []Color,
+    width, height: u32,
+}
+
 BlockFaces::enum {
     NORTH, EAST, TOP, SOUTH, WEST, BOTTOM,
 }
@@ -88,9 +96,6 @@ MobStats::struct {
 
 ModID::u64
 
-// raw texture data
-Texture::[]u8
-
 InitItemInfo::struct {
     name, tooltip, texture, model: cstring,
 }
@@ -98,7 +103,7 @@ InitItemInfo::struct {
 InitBlockInfo::struct {
     name: cstring,
     tooltip: cstring,
-    texture: Texture,
+    texture: RawTexture,
     // model: // TODO: implement this
 }
 

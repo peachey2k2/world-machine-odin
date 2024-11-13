@@ -9,3 +9,6 @@ nob.old
 # Compiled binaries
 bin
 logs
+
+# idk what this even does
+imgui.ini

@@ -35,7 +35,7 @@ init_ui::proc() {
     impl_sdl.InitForOpenGL(_window, _context)
     impl_opengl.Init("#version 430")
 
-    utils.connect_engine_signal(.FRAME_RENDER_UI, draw_demo_window)
+    // utils.connect_engine_signal(.FRAME_RENDER_UI, draw_demo_window)
 }
 
 draw_demo_window::proc() {
