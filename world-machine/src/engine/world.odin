@@ -3,6 +3,7 @@ package engine
 import "core:math/noise"
 import "core:fmt"
 import "core:math"
+import "core:math/bits"
 
 import "src:utils"
 
@@ -21,6 +22,7 @@ _chunks_to_generate_at : utils.OneToOneQueue(ChunkPos)
 
 _small_chunk_pool : utils.ObjectPool(SmallChunk)
 _large_chunk_pool : utils.ObjectPool(LargeChunk)
+_render_mask_pool : utils.ObjectPool(ChunkBitMask)
 
 init_world::proc() {
     bm := utils.bench_start("init_world")
@@ -32,6 +34,7 @@ init_world::proc() {
 
     _small_chunk_pool = utils.create_pool(SmallChunk, 16)
     _large_chunk_pool = utils.create_pool(LargeChunk, 16)
+    _render_mask_pool = utils.create_pool(ChunkBitMask, 16)
     
     clear(&_chunks)
     utils.enqueue(&_chunks_to_generate_at, ChunkPos{0,0,0})
@@ -94,6 +97,12 @@ queue_generations_at::proc(center: ChunkPos, radius: i32) {
 
 generate_chunk::proc(pos: ChunkPos) {
     chunk_layout := ChunkLayout{}
+    mask, ok := utils.acquire(&_render_mask_pool)
+    if !ok {
+        fmt.println("Failed to acquire render mask")
+        return
+    }
+
     for x := i32(0); x < 16; x += 1 {
         for z := i32(0); z < 16; z += 1 {
             height := cast(i32)noise.noise_2d(_noise_seed, {
@@ -103,16 +112,19 @@ generate_chunk::proc(pos: ChunkPos) {
             height = clamp(height - pos.y*16, 0, 16)
             
             for y := i32(0); y < 16; y += 1 {
-                chunk_layout[x + y*16 + z*16*16] = 1
+                chunk_layout[y + x*16 + z*16*16] = 1
             }
+            mask[x + z*16] = transmute(u16)((1 << transmute(u32)height) - 1)
         }
     }
-    _chunks[pos] = construct_chunk(chunk_layout)
+    _chunks[pos] = construct_chunk(chunk_layout, mask)
 }
 
-construct_chunk::proc(layout: ChunkLayout) -> (chunk: Chunk) {
+construct_chunk::proc(layout: ChunkLayout, mask: ^ChunkBitMask) -> (chunk: Chunk) {
     layout := layout
     block_counts := map[BlockID]u32{}
+
+    chunk.cull_mask = mask
 
     for block in layout {
         block_counts[block] += 1
@@ -206,6 +218,29 @@ get_block::proc(at: BlockPos) -> (block: BlockID) {
 }
 
 // find_extremes::proc // TODO: Implement
+
+set_chunk_block:: proc {
+    set_chunk_block_vec,
+    set_chunk_block_nums,
+}
+
+set_chunk_block_vec:: #force_inline proc(chunk: Chunk, at: ChunkedBlockPos, to: BlockID) {
+    if chunk.large != nil {
+        chunk.large.data[at.x + at.y*16 + at.z*16*16] = to
+    } else {
+        idx := chunk.small.data[at.x + at.y*16 + at.z*16*16]
+        chunk.small.data[at.x + at.y*16 + at.z*16*16] = u8(idx == 0 ? 0 : to)
+    }
+}
+
+set_chunk_block_nums:: #force_inline proc(chunk: Chunk, #any_int x, y, z: int, to: BlockID) {
+    if chunk.large != nil {
+        chunk.large.data[x + y*16 + z*16*16] = to
+    } else {
+        idx := chunk.small.data[x + y*16 + z*16*16]
+        chunk.small.data[x + y*16 + z*16*16] = u8(idx == 0 ? 0 : to)
+    }
+}
 
 
 

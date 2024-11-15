@@ -2,6 +2,7 @@ package engine
 
 import "core:time"
 import "core:math/linalg"
+import "core:math/bits"
 
 import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
@@ -13,7 +14,7 @@ TILES_PER_ROW :: 16
 
 // we only keep the block atlas in memory as a strip to save on memory
 // and upload it to gpu in parts
-_block_atlas_strip : RawTexture
+_block_atlas_strip := RawTexture{}
 _block_atlas_id : u32
 
 @(private="file")
@@ -76,7 +77,7 @@ init_block_atlas::proc() {
         width          = TILE_SIZE * TILES_PER_ROW,
         height         = TILE_SIZE * TILES_PER_ROW,
         border         = 0,
-        format         = gl.RGBA8UI,
+        format         = gl.RGBA,
         type           = gl.UNSIGNED_BYTE,
         pixels         = nil,
     )
@@ -96,7 +97,7 @@ add_texture_to_atlas::proc(texture: RawTexture) -> TextureID {
             height  = TILE_SIZE,
             format  = gl.RGBA8UI,
             type    = gl.UNSIGNED_BYTE,
-            pixels  = &_block_atlas_strip.data
+            pixels  = &_block_atlas_strip.data[0]
         )
     }
 
@@ -127,9 +128,9 @@ init_block_mesh::proc() {
         yoffset = TILE_SIZE * ((transmute(i32)_id_counter-1)/TILES_PER_ROW + 1),
         width   = TILE_SIZE * TILES_PER_ROW,
         height  = TILE_SIZE,
-        format  = gl.RGBA8UI,
+        format  = gl.RGBA,
         type    = gl.UNSIGNED_BYTE,
-        pixels  = &_block_atlas_strip.data
+        pixels  = &_block_atlas_strip.data[0]
     )
 
     block_shader, ok := gl.load_shaders_source(
@@ -242,5 +243,261 @@ compute_mvp::#force_inline proc() -> linalg.Matrix4f32 {
     return proj * view * model
 }
 
-render_update_chunk::proc(pos: ChunkPos) {}
-render_deactivate_chunk::proc(pos: ChunkPos) {}
+@(private="file")
+render_activate_chunk::proc(pos: ChunkPos) {
+    data, size := calculate_chunk_data(pos)
+    if size == 0 do return
+    edit_mesh(pos, data, size)
+
+    _should_update_blocks_mesh = true
+}
+
+@(private="file")
+render_update_chunk::proc(pos: ChunkPos) {
+    data, size := calculate_chunk_data(pos)
+    if size == 0 {
+        render_deactivate_chunk(pos)
+        return
+    }
+    edit_mesh(pos, data, size)
+
+    _should_update_blocks_mesh = true
+}
+
+@(private="file")
+render_deactivate_chunk::proc(pos: ChunkPos) {
+    // TODO: implement
+}
+
+@(private="file") CS :: 16 // chunk size
+@(private="file") CS_2 :: CS * CS // squared
+
+@(private="file")
+BlockVertData::u64
+
+@(private="file")
+create_mesh_data::#force_inline proc(
+    #any_int pos_x, pos_y, pos_z: int,
+    #any_int size_u, size_v: int,
+    #any_int face: int,
+    #any_int texture: int
+) -> BlockVertData {
+    tex_u, tex_v := texture % TILES_PER_ROW, texture / TILES_PER_ROW
+    return BlockVertData(
+        (u64(pos_x) << 0) | (u64(pos_y) << 5) | (u64(pos_z) << 10) | // 5 bits each
+        (u64(size_u) << 15) | (u64(size_v) << 20) | // 5 bits each
+        (u64(face) << 25) | // 3 bits
+        (u64(tex_u) << 32) | (u64(tex_v) << 48) // 16 bits each 
+    )
+    // here's a visualized memory layout
+    // XXXXXYYY YYZZZZZU UUUUVVVV VFFF----
+    // UUUUUUUU UUUUUUUU VVVVVVVV VVVVVVVV
+}
+
+@(private="file")
+calculate_chunk_data::proc(pos: ChunkPos) -> (vertex_data: [6*CS*CS*CS]BlockVertData, size: int) {
+    size = 0
+
+    chunk := _chunks[pos]
+
+    cull_mask := chunk.cull_mask^
+    face_masks := [BlockFaces]ChunkBitMask{}
+
+    // https://github.com/cgerikj/binary-greedy-meshing/blob/master/src/mesher.h
+
+    for a in 1..<16-1 {
+        aCS := a * CS 
+        for b in 1..<16-1 {
+            column := cull_mask[aCS + b]
+
+            ba_idx := (b-1) + (a-1)*CS
+            ab_idx := (a-1) + (b-1)*CS
+            
+            face_masks[.NORTH][ab_idx]  = column & ~cull_mask[aCS + b + 1]
+            face_masks[.EAST][ab_idx]   = column & ~cull_mask[aCS + b - 1]
+
+            face_masks[.SOUTH][ba_idx]  = column & ~cull_mask[aCS + b + CS]
+            face_masks[.WEST][ba_idx]   = column & ~cull_mask[aCS + b - CS]
+
+            face_masks[.TOP][ab_idx]    = column & ~(cull_mask[aCS + b] >> 1)
+            face_masks[.BOTTOM][ab_idx] = column & ~(cull_mask[aCS + b] << 1)
+        }
+    }
+
+    if chunk.large != nil {
+        // don't run the greedy mesher for large chunks
+        // instead run a simple face culler
+
+        // blocks := chunk.large.data
+        // TODO: can't be bothered rn
+
+    } else {
+        // run the greedy mesher
+        
+        blocks := chunk.small.data
+        
+        for face in BlockFaces {
+            face_casted := int(face)
+            axis := face_casted / 2
+
+            forward_merged := [CS_2]u8{}
+            right_merged := [CS]u8{}
+
+            switch axis {
+            case 0, 1:
+                for layer in 0..<CS {
+                    bits_idx := layer*CS
+
+                    for forward in 0..<CS {
+                        bits_here := face_masks[face][forward + bits_idx]
+                        if bits_here == 0 do continue
+
+                        next_bits := face_masks[face][forward+1 + bits_idx] if forward < CS-1 else 0
+
+                        right_merged := u8(1)
+
+                        for bits_here > 0 {
+                            bit_pos := u8(bits.trailing_zeros(bits_here))
+                            block := blocks[get_axis_idx(axis, forward+1, bit_pos+1, layer+1)]
+
+                            forward_merged_ref := &forward_merged[bit_pos]
+
+                            if (
+                                (next_bits >> bit_pos & 1 != 0) &&
+                                (block == blocks[get_axis_idx(axis, forward+2, bit_pos+1, layer+1)]) \
+                            ) {
+                                forward_merged_ref^ += 1
+                                bits_here &=  ~(1 << bit_pos)
+                                continue
+                            }
+
+                            for right in (bit_pos+1)..<CS {
+                                if (
+                                    ((bits_here >> right & 1) == 0) ||
+                                    (forward_merged_ref^ != forward_merged[right]) ||
+                                    (block != blocks[get_axis_idx(axis, forward+1, right+1, layer+1)]) \
+                                ) {
+                                    break
+                                }
+                                forward_merged[right] = 0
+                                right_merged += 1
+                            }
+                            forward_merged_ref^ &= ~((1 << (bit_pos + right_merged)) - 1)
+
+                            mesh_front  := u8(forward) - forward_merged_ref^
+                            mesh_left   := bit_pos
+                            mesh_up     := layer + (~face_casted & 1)
+
+                            mesh_width  := right_merged
+                            mesh_length := forward_merged_ref^ + 1
+
+                            forward_merged_ref^ = 0
+                            right_merged = 1
+
+                            switch axis {
+                            case 0: vertex_data[size] = create_mesh_data(
+                                pos_x   = mesh_front + (face_casted==1 ? mesh_length : 0),
+                                pos_y   = mesh_up,
+                                pos_z   = mesh_left,
+                                size_u  = mesh_length,
+                                size_v  = mesh_width,
+                                face    = face_casted,
+                                texture = chunk.small.blocks[block-1]
+                            )
+                            case 1: vertex_data[size] = create_mesh_data(
+                                pos_x   = mesh_up,
+                                pos_y   = mesh_front + (face_casted==2 ? mesh_length : 0),
+                                pos_z   = mesh_left,
+                                size_u  = mesh_length,
+                                size_v  = mesh_width,
+                                face    = face_casted,
+                                texture = chunk.small.blocks[block-1]
+                            )
+                            }
+                            size += 1
+                        }
+                    }
+                }
+            case 2:
+                for forward in 0..<CS {
+                    bits_idx := forward*CS
+                    bits_forward_idx := (forward+1)*CS
+
+                    for right in 0..<CS {
+                        bits_here := face_masks[face][right + bits_idx]
+                        if bits_here == 0 do continue
+
+                        bits_forward := face_masks[face][right + bits_forward_idx] if forward < CS-1 else 0
+                        bits_right   := face_masks[face][right+1 + bits_idx]       if right   < CS-1 else 0
+                        rightCS := right * CS
+
+                        for bits_here > 0 {
+                            bit_pos := u8(bits.trailing_zeros(bits_here))
+                            
+                            bits_here &= ~(1 << bit_pos)
+
+                            block := blocks[get_axis_idx(axis, right+1, forward+1, bit_pos)]
+                            forward_merged_ref := &forward_merged[rightCS + int(bit_pos) - 1]
+                            right_merged_ref := &right_merged[bit_pos - 1]
+
+                            if (
+                                (right_merged_ref^ == 0) &&
+                                (bits_forward >> bit_pos & 1 != 0) &&
+                                (block == blocks[get_axis_idx(axis, right+1, forward+2, bit_pos)]) \
+                            ) {
+                                forward_merged_ref^ += 1
+                                continue
+                            }
+
+                            if (
+                                (bits_right >> bit_pos & 1 != 0) &&
+                                (forward_merged_ref^ == forward_merged[(rightCS+CS) + int(bit_pos) - 1]) &&
+                                (block == blocks[get_axis_idx(axis, right+2, forward+1, bit_pos)]) \ 
+                            ) {
+                                forward_merged_ref^ = 0
+                                right_merged_ref^ += 1
+                                continue
+                            }
+
+                            mesh_left   := u8(right) - right_merged_ref^
+                            mesh_front  := u8(forward) - forward_merged_ref^
+                            mesh_up     := u8(bit_pos) - 1 + u8(~face_casted & 1)
+
+                            mesh_width  := right_merged_ref^ + 1
+                            mesh_length := forward_merged_ref^ + 1
+
+                            forward_merged_ref^ = 0
+                            right_merged_ref^ = 0
+
+                            vertex_data[size] = create_mesh_data(
+                                pos_x   = mesh_left + (face_casted==4 ? mesh_width : 0),
+                                pos_y   = mesh_front,
+                                pos_z   = mesh_up,
+                                size_u  = mesh_width,
+                                size_v  = mesh_length,
+                                face    = face_casted,
+                                texture = chunk.small.blocks[block-1]
+                            )
+                            size += 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return vertex_data, size
+}
+
+get_axis_idx::#force_inline proc(axis: int, #any_int a, b, c: int) -> int {
+    switch axis {
+        case 0: return b + CS*a + CS_2*c
+        case 1: return b + CS*c + CS_2*a
+        case 2: return c + CS*a + CS_2*b
+    }
+    return 0
+}
+
+edit_mesh::proc(pos: ChunkPos, data: [6*CS*CS*CS]BlockVertData, size: int) {
+    
+}
+

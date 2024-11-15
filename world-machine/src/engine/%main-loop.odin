@@ -64,10 +64,9 @@ handle_events::proc() {
     }
 }
 
-render::proc() {
-    
+render::proc() {    
     // draw stuff here
-    
+    render_update()
 }
 
 update_framerate::proc() {
@@ -115,7 +114,7 @@ on_mouse_motion::proc(event:^sdl.Event) {
     _camera.right = linalg.normalize(linalg.cross(_camera.front ,linalg.Vector3f32{0, 1, 0}))
     _camera.up    = linalg.normalize(linalg.cross(_camera.right, _camera.front))
 
-    fmt.printf("Yaw: %f, Pitch: %f\n", _camera.yaw, _camera.pitch)
+    // fmt.printf("Yaw: %f, Pitch: %f\n", _camera.yaw, _camera.pitch)
 }
 
 world_should_tick::proc() -> bool { return _world_should_tick }

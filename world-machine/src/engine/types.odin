@@ -51,12 +51,15 @@ LargeChunk::struct {
     data: [16*16*16]BlockID,
 }
 
+ChunkBitMask::[16*16]u16
+
 // This is the main chunk struct. Small chunks are used when the chunk has
 // less than 256 unique blocks. Use dedicated functions to modify the chunk.
 // Do not modify the chunk directly, you're probably going to mess it up.
-Chunk::struct {
+Chunk::struct { // yxz
     small: ^SmallChunk,
     large: ^LargeChunk,
+    cull_mask: ^ChunkBitMask,
 }
 
 // Used when constructing a chunk
@@ -69,7 +72,9 @@ RawTexture::struct {
 }
 
 BlockFaces::enum {
-    NORTH, EAST, TOP, SOUTH, WEST, BOTTOM,
+    NORTH, SOUTH,
+    EAST,  WEST,
+    TOP,   BOTTOM,
 }
 
 ObjectType::enum {
