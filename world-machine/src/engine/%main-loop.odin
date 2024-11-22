@@ -12,12 +12,12 @@ import "src:utils"
 
 import "extra-vendor:imgui/imgui_impl_sdl2"
 
-_mean_framerate := i64(0)
-_mean_frame_time := time.Duration{}
+@(private="file") _mean_framerate := i64(0)
+@(private="file") _mean_frame_time := time.Duration{}
 
-_last_frame_times := [20]time.Duration{}
-_current_frame := u64(0)
-_last_frame_tick := time.Tick{}
+@(private="file") _last_frame_times := [20]time.Duration{}
+@(private="file") _current_frame := u64(0)
+@(private="file") _last_frame_tick := time.Tick{}
 
 _camera : struct {
     pos, front, up, right: linalg.Vector3f32,
@@ -119,4 +119,6 @@ on_mouse_motion::proc(event:^sdl.Event) {
 
 world_should_tick::proc() -> bool { return _world_should_tick }
 world_should_update::proc() -> bool { return _world_should_update }
-relative_frame_time::proc() -> time.Duration { return time.tick_diff(_last_frame_tick, time.tick_now()) }
+mean_frame_time::proc() -> time.Duration { return time.tick_diff(_last_frame_tick, time.tick_now()) }
+mean_framerate::proc() -> i64 { return _mean_framerate }
+last_frame_time::proc() -> time.Duration { return _last_frame_times[_current_frame % 20] }

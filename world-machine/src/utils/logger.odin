@@ -127,14 +127,23 @@ when ENABLE_BENCHMARKS {
         free(b)
     }
 
+    @(deferred_out=bench_end)
+    bench::#force_inline proc(name: string) -> ^BenchmarkObject {
+        return bench_start(name)
+    }
+
 } else {
 
-    bench_start::proc(name: string) -> (rawptr) {
+    bench_start::#force_inline proc(name: string) -> (rawptr) {
         return nil
     }
 
-    bench_end::proc(b: rawptr) {
+    @(disabled=true)
+    bench_end::#force_inline proc(b: rawptr) {
     }
     
+    @(disabled=true)
+    bench::#force_inline proc(name: string) {
+    }
 }
 

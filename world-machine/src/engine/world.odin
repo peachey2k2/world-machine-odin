@@ -4,6 +4,7 @@ import "core:math/noise"
 import "core:fmt"
 import "core:math"
 import "core:math/bits"
+import "core:sync"
 
 import "src:utils"
 
@@ -16,13 +17,16 @@ _chunks := map[ChunkPos]Chunk{}
 
 // These should only be accesed by the main and world threads.
 // One-to-one queues are only thread safe if there is only one producer and one consumer.
-_chunks_to_generate : utils.OneToOneQueue(ChunkPos)
-_chunks_to_remove : utils.OneToOneQueue(ChunkPos)
-_chunks_to_generate_at : utils.OneToOneQueue(ChunkPos)
+@(private="file") _chunks_to_generate : utils.OneToOneQueue(ChunkPos)
+@(private="file") _chunks_to_remove : utils.OneToOneQueue(ChunkPos)
+@(private="file") _chunks_to_generate_at : utils.OneToOneQueue(ChunkPos)
 
-_small_chunk_pool : utils.ObjectPool(SmallChunk)
-_large_chunk_pool : utils.ObjectPool(LargeChunk)
-_render_mask_pool : utils.ObjectPool(ChunkBitMask)
+@(private="file") _small_chunk_pool : utils.ObjectPool(SmallChunk)
+@(private="file") _large_chunk_pool : utils.ObjectPool(LargeChunk)
+@(private="file") _render_mask_pool : utils.ObjectPool(ChunkBitMask)
+
+// This is used to signal the world thread that there is work to be done.
+_world_futex := sync.Futex(0)
 
 init_world::proc() {
     bm := utils.bench_start("init_world")
@@ -46,6 +50,25 @@ deinit_world::proc() {
     utils.destroy(&_chunks_to_generate)
     utils.destroy(&_chunks_to_remove)
     utils.destroy(&_chunks_to_generate_at)
+    // TODO:  wait for world thread to finish
+}
+
+add_chunk_to_generate::proc(pos: ChunkPos) {
+    utils.enqueue(&_chunks_to_generate, pos)
+    sync.atomic_store(&_world_futex, 1)
+    sync.futex_signal(&_world_futex)
+}
+
+add_chunk_to_remove::proc(pos: ChunkPos) {
+    utils.enqueue(&_chunks_to_remove, pos)
+    sync.atomic_store(&_world_futex, 1)
+    sync.futex_signal(&_world_futex)
+}
+
+add_chunk_to_generate_at::proc(pos: ChunkPos) {
+    utils.enqueue(&_chunks_to_generate_at, pos)
+    sync.atomic_store(&_world_futex, 1)
+    sync.futex_signal(&_world_futex)
 }
 
 world_loop::proc() {
@@ -66,6 +89,12 @@ world_loop::proc() {
             pos, _ := dequeue(&_chunks_to_remove)
             remove_chunk(pos)
         }
+        
+        if is_empty(&_chunks_to_generate) && is_empty(&_chunks_to_remove) && is_empty(&_chunks_to_generate_at) {
+            sync.atomic_store(&_world_futex, 0)
+        }
+
+        sync.futex_wait(&_world_futex, 0)
     }
 }
 
