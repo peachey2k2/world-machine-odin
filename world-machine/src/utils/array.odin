@@ -15,3 +15,9 @@ remove_elem::proc(arr: ^$D/[dynamic]$T, elem: T) -> (ok:bool) {
     return true
 }
 
+index_of::proc(arr: ^$D/[dynamic]$T, elem_addr: ^T) -> (idx:int, has:bool) {
+    idx = transmute(int)elem_addr - transmute(int)arr
+    if idx >= len(arr) || idx < 0 do return -1, false
+    return idx, true
+}
+

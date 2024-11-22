@@ -95,7 +95,7 @@ add_texture_to_atlas::proc(texture: RawTexture) -> TextureID {
             yoffset = TILE_SIZE * (transmute(i32)texture_id / TILES_PER_ROW),
             width   = TILE_SIZE * TILES_PER_ROW,
             height  = TILE_SIZE,
-            format  = gl.RGBA8UI,
+            format  = gl.RGBA,
             type    = gl.UNSIGNED_BYTE,
             pixels  = &_block_atlas_strip.data[0]
         )
@@ -166,13 +166,13 @@ render_update::proc() {
         if is_empty(&_render_chunks_to_update) do break
         chunk_pos := dequeue(&_render_chunks_to_update)
         render_update_chunk(chunk_pos)
-        if relative_frame_time() > 5 * time.Millisecond do break
+        if mean_frame_time() > 5 * time.Millisecond do break
     }
     for {
         if is_empty(&_render_chunks_to_deactivate) do break
         chunk_pos := dequeue(&_render_chunks_to_deactivate)
         render_deactivate_chunk(chunk_pos)
-        if relative_frame_time() > 5 * time.Millisecond do break
+        if mean_frame_time() > 5 * time.Millisecond do break
     }
 
     if len(_block_mesh.bufs.indirect.buffer) > 0 do draw_blocks()
@@ -247,7 +247,7 @@ compute_mvp::#force_inline proc() -> linalg.Matrix4f32 {
 render_activate_chunk::proc(pos: ChunkPos) {
     data, size := calculate_chunk_data(pos)
     if size == 0 do return
-    edit_mesh(pos, data, size)
+    edit_mesh(pos, data[:], size)
 
     _should_update_blocks_mesh = true
 }
@@ -259,7 +259,7 @@ render_update_chunk::proc(pos: ChunkPos) {
         render_deactivate_chunk(pos)
         return
     }
-    edit_mesh(pos, data, size)
+    edit_mesh(pos, data[:], size)
 
     _should_update_blocks_mesh = true
 }
@@ -268,6 +268,8 @@ render_update_chunk::proc(pos: ChunkPos) {
 render_deactivate_chunk::proc(pos: ChunkPos) {
     // TODO: implement
 }
+
+// i hate this whole entire thing going here
 
 @(private="file") CS :: 16 // chunk size
 @(private="file") CS_2 :: CS * CS // squared
@@ -294,8 +296,17 @@ create_mesh_data::#force_inline proc(
     // UUUUUUUU UUUUUUUU VVVVVVVV VVVVVVVV
 }
 
+get_axis_idx::#force_inline proc(axis: int, #any_int a, b, c: int) -> int {
+    switch axis {
+        case 0: return b + CS*a + CS_2*c
+        case 1: return b + CS*c + CS_2*a
+        case 2: return c + CS*a + CS_2*b
+    }
+    return 0
+}
+
 @(private="file")
-calculate_chunk_data::proc(pos: ChunkPos) -> (vertex_data: [6*CS*CS*CS]BlockVertData, size: int) {
+calculate_chunk_data::proc(pos: ChunkPos) -> (vertex_data: [6*CS*CS*CS]BlockVertData, size: u32) {
     size = 0
 
     chunk := _chunks[pos]
@@ -488,16 +499,140 @@ calculate_chunk_data::proc(pos: ChunkPos) -> (vertex_data: [6*CS*CS*CS]BlockVert
     return vertex_data, size
 }
 
-get_axis_idx::#force_inline proc(axis: int, #any_int a, b, c: int) -> int {
-    switch axis {
-        case 0: return b + CS*a + CS_2*c
-        case 1: return b + CS*c + CS_2*a
-        case 2: return c + CS*a + CS_2*b
+edit_mesh::proc(pos: ChunkPos, data: []BlockVertData, size: u32) {
+    // utils.bench("edit_mesh")
+    using _block_mesh.bufs
+
+    ssbo_data : [4]i32
+    ssbo_data.xyz = pos
+    ssbo_data.w = 0
+
+    cmd : ^IndirectCommand
+    exists := false
+    idx := 0
+
+    for e, i in ssb.buffer {
+        if e.xyz == pos {
+            exists = true
+            idx = i
+            break
+        }
     }
-    return 0
+
+    // create if it doesn't exist
+    if !exists {
+        cmd, idx = create_indirect_command(size)
+        inject_at(&ssb.buffer, idx, ssbo_data)
+
+    // resize and/or move if it does
+    } else {
+        idx_new : int
+        cmd, idx_new = resize_indirect_command(&indirect.buffer[idx], size)
+        if idx_new != idx {
+            ordered_remove(&ssb.buffer, idx)
+            inject_at(&ssb.buffer, idx_new, ssbo_data)
+        }
+    }
+
+    if attrib.size > len(attrib.buffer) {
+        reserve(&attrib.buffer, attrib.size + 1024)
+    }
+
+    // despacito
+    copy(attrib.buffer[cmd.base_instance:], data[:size])
 }
 
-edit_mesh::proc(pos: ChunkPos, data: [6*CS*CS*CS]BlockVertData, size: int) {
-    
+create_indirect_command::proc(size: u32) -> (cmd: ^IndirectCommand, idx: int) {
+    using _block_mesh.bufs
+
+    command := IndirectCommand{
+        count = 0,
+        instance_count = size,
+        first = 0,
+        base_instance = 0, // we'll find the right place later
+    }
+
+    // check if empty. this might seem redundant, but it prevents a crash
+    if len(indirect.buffer) == 0 {
+        attrib.size = int(size)
+        append(&indirect.buffer, command)
+        cmd = &indirect.buffer[0]
+        idx = 0
+        return
+    }
+
+    // check the start
+    if indirect.buffer[0].base_instance >= size {
+        inject_at(&indirect.buffer, 0, command)
+        cmd = &indirect.buffer[0]
+        idx = 0
+        return
+    }
+
+    // check for any other gaps
+    for i in 1..<len(indirect.buffer) {        
+        prev_end := (indirect.buffer[i-1].base_instance + indirect.buffer[i-1].instance_count)
+        cur_start := indirect.buffer[i].base_instance
+
+        if (cur_start - prev_end >= size ) {
+            cmd.base_instance = prev_end
+            inject_at(&indirect.buffer, i, command)
+            cmd = &indirect.buffer[i]
+            idx = i
+            return
+        }
+    }
+
+    // if no gaps, put to the end
+    last := indirect.buffer[len(indirect.buffer)-1]
+    cmd.base_instance = last.base_instance + last.instance_count
+    attrib.size = int(cmd.base_instance + size)
+    append(&indirect.buffer, command)
+    cmd = &indirect.buffer[len(indirect.buffer)-1]
+    idx = len(indirect.buffer)-1
+    return
 }
 
+resize_indirect_command::proc(cmd: ^IndirectCommand, new_size: u32) -> (cmd_new:^IndirectCommand, idx_new: int) {
+    using _block_mesh.bufs
+
+    // get index with pointer arithmetic
+    idx_old, has := utils.index_of(&indirect.buffer, cmd)
+    if !has {
+        utils.log(.ERROR, "resize_indirect_command: command not found. idx_old:", idx_old, "new_size:", new_size)
+        return
+    }
+
+    // if we're shrinking, we don't need to do anything
+    if cmd.instance_count >= new_size {
+        cmd.instance_count = new_size
+        cmd_new = cmd
+        idx_new = idx_old
+        return
+    }
+
+    // if it's at the end, we might need to increase our buffer size
+    if idx_old == len(indirect.buffer)-1 {
+        attrib.size =  max(attrib.size, int(cmd.base_instance + new_size))
+        cmd.instance_count = new_size
+        cmd_new = cmd
+        idx_new = idx_old
+        return
+    }
+
+    // the last check should prevent us from going out of bounds here
+    next := indirect.buffer[idx_old+1]
+
+    // if we can expand, we do
+    if cmd.base_instance + new_size <= next.base_instance {
+        cmd.instance_count = new_size
+        cmd_new = cmd
+        idx_new = idx_old
+        return
+    }
+
+    // if we can't, we find a new place for it
+    ordered_remove(&indirect.buffer, idx_old)
+    cmd_new, idx_new = create_indirect_command(new_size)
+    return
+}

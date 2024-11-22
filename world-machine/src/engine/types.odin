@@ -32,18 +32,21 @@ Range::struct($T:typeid) {
 }
 
 IndirectCommand::struct {
-    count, instance_count, first, base_instance: u32,
+    count:          u32,
+    instance_count: u32,
+    first:          u32,
+    base_instance:  u32,
 }
 
 Block::struct {
-    itemID: ItemID, // needed for conversion
-    textureID: TextureID,
-    name: string,
-    tooltip: string,
+    itemID:     ItemID, // needed for conversion
+    textureID:  TextureID,
+    name:       string,
+    tooltip:    string,
 }
 
 SmallChunk::struct {
-    data: [16*16*16]u8,
+    data:   [16*16*16]u8,
     blocks: [dynamic]BlockID,
 }
 
@@ -57,9 +60,9 @@ ChunkBitMask::[16*16]u16
 // less than 256 unique blocks. Use dedicated functions to modify the chunk.
 // Do not modify the chunk directly, you're probably going to mess it up.
 Chunk::struct { // yxz
-    small: ^SmallChunk,
-    large: ^LargeChunk,
-    cull_mask: ^ChunkBitMask,
+    small:      ^SmallChunk,
+    large:      ^LargeChunk,
+    cull_mask:  ^ChunkBitMask,
 }
 
 // Used when constructing a chunk
@@ -67,8 +70,9 @@ ChunkLayout:: [16*16*16]u32
 
 // raw texture data
 RawTexture::struct {
-    data: []Color,
-    width, height: u32,
+    data:   []Color,
+    width:  u32,
+    height: u32,
 }
 
 BlockFaces::enum {
@@ -83,19 +87,19 @@ ObjectType::enum {
 
 // Returned by raycast functions
 RayTarget::struct {
-    id: u64,
-    pos: BlockPos,
-    face: BlockFaces,
-    type: ObjectType,
+    id:     u64,
+    pos:    BlockPos,
+    face:   BlockFaces,
+    type:   ObjectType,
 }
 
 MobStats::struct {
-    health: f64,
-    speed: f64,
-    attack: f64,
-    defense: f64,
-    attack_speed: f64,
-    attack_range: f64,
+    health:         f64,
+    speed:          f64,
+    attack:         f64,
+    defense:        f64,
+    attack_speed:   f64,
+    attack_range:   f64,
 }
 
 
@@ -106,9 +110,9 @@ InitItemInfo::struct {
 }
 
 InitBlockInfo::struct {
-    name: cstring,
-    tooltip: cstring,
-    texture: RawTexture,
+    name:       cstring,
+    tooltip:    cstring,
+    texture:    RawTexture,
     // model: // TODO: implement this
 }
 
@@ -120,9 +124,9 @@ InitEntityInfo::struct {
 
 
 ApiFunctions::struct {
-    add_block: proc "c" (block: InitBlockInfo),
-    add_entity: proc "c" (entity: InitEntityInfo),
-    add_item: proc "c" (item: InitItemInfo),
+    add_block:      proc "c" (block: InitBlockInfo),
+    add_entity:     proc "c" (entity: InitEntityInfo),
+    add_item:       proc "c" (item: InitItemInfo),
 }
 
 ModInfo::struct {

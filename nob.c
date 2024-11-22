@@ -147,6 +147,11 @@ int main(int argc, char **argv) {
         else ifeq(arg, "-bench") {
             benchmarks = true;
         }
+
+        else {
+            printf("Unknown argument: %s\n", arg);
+            return 1;
+        }
     }
 
     while (funcs != NULL) {
@@ -214,17 +219,23 @@ void build() {
 
 void run() {
     cmd_immediate(WMAC_EXECUTABLE);
-
     printf("[✓] Run successful.\n");
 }
 
 void check() {
-    cmd_immediate(
+    Cmd cmd = {};
+    cmd_append(&cmd,
         "odin",
         "check",
         WMAC_SOURCE,
         WMAC_COLLECTIONS
     );
+
+    if (benchmarks) {
+        cmd_append(&cmd, "-define:ENABLE_BENCHMARKS=true");
+    }
+
+    if (!cmd_run_sync(cmd)) exit(1);
     printf("[✓] Syntax check passed.\n");
 }
 

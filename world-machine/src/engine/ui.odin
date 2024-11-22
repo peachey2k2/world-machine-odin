@@ -1,6 +1,7 @@
 package engine
 
 import "core:fmt"
+import "core:strings"
 
 import "extra-vendor:imgui"
 import impl_sdl "extra-vendor:imgui/imgui_impl_sdl2"
@@ -36,10 +37,20 @@ init_ui::proc() {
     impl_opengl.Init("#version 430")
 
     // utils.connect_engine_signal(.FRAME_RENDER_UI, draw_demo_window)
+    utils.connect_engine_signal(.FRAME_RENDER_UI, draw_debug_window)
 }
 
 draw_demo_window::proc() {
     imgui.ShowDemoWindow()
+}
+
+draw_debug_window::proc() {
+    @(static) sb := strings.Builder{}
+    imgui.SetNextWindowPos({0, 0}, .Once)
+    imgui.Begin("Debug")
+    imgui.Text(strings.unsafe_string_to_cstring(fmt.sbprintf(&sb, "FPS: %d%c", mean_framerate(), byte(0))))
+    strings.builder_reset(&sb)
+    imgui.End()
 }
 
 draw_ui::proc() {
