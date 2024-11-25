@@ -1,6 +1,6 @@
 package engine
 
-
+import "base:runtime"
 
 init_core_mod::proc() -> Mod {
     core_mod_info := ModInfo{
@@ -27,7 +27,14 @@ init_items::proc "c" () {
 
 @(private="file")
 init_blocks::proc "c" () {
-
+    context = runtime.default_context()
+    block := InitBlockInfo{
+        name = "grass",
+        tooltip = "test",
+        texture = create_texture(#load("res:blocks/grass.png")),
+    }
+    add_block(block)
+    free_texture(block.texture)
 }
 
 @(private="file")

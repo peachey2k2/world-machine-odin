@@ -33,9 +33,10 @@ _camera : struct {
 }
 
 main_loop::proc() {
+    _last_frame_tick = time.tick_now()
+    
     for (_window_should_close == false) {
-        bm := utils.bench_start("main_loop")
-        defer utils.bench_end(bm)
+        utils.bench("main_loop")
 
         gl.Viewport(0, 0, WINDOW_SIZE[0], WINDOW_SIZE[1])
         gl.ClearColor(0.45, 0.55, 0.60, 1.00)

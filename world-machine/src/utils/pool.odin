@@ -5,6 +5,7 @@ import "core:mem"
 ObjectPool::struct($T: typeid) {
     pool: Queue(^T),
     alloc_count: int,
+    ptrs: [dynamic]^T,
 }
 
 @(require_results)
@@ -18,6 +19,10 @@ create_pool::proc($T: typeid, alloc_count: int = 16, capacity: int = 32) -> Obje
 }
 
 destroy_pool::proc(pool: ^ObjectPool($T)) {
+    for ptr in pool.ptrs {
+        free(ptr)
+    }
+    delete(pool.ptrs)
     destroy(&pool.pool)
 }
 
@@ -35,12 +40,18 @@ release::proc(pool: ^ObjectPool($T), item: ^T) {
 
 // @(private="file")
 refill::proc(pool: ^ObjectPool($T)) {
-    // for (pool.pool.head - pool.pool.tail) % pool.pool.capacity <= pool.alloc_count {
-    //     expand_queue(&pool.pool)
-    // }
     ptr, _ := mem.alloc(pool.alloc_count * size_of(T))
     casted_ptr := transmute([^]T)ptr
     for i in 0..<pool.alloc_count {
         enqueue(&pool.pool, &(casted_ptr[i]))
     }
+    append(&pool.ptrs, casted_ptr)
+}
+
+call_for_all_pool::proc(p: ^ObjectPool($T), curry: $C, f: proc(elem: ^T, curry: C)) {
+    call_for_all_regular(&p.pool, curry, f)
+}
+
+len_pool::#force_inline proc(p: ObjectPool($T)) -> int {
+    return len_regular(p.pool)
 }

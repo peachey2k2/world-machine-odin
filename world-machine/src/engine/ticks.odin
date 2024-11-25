@@ -19,6 +19,8 @@ tick_loop::proc() {
             tick()
             utils.emit_engine_signal(.TICK_END)
         }
+
+        time.sleep(time.Millisecond)
     }
 }
 

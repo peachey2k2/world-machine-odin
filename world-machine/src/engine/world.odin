@@ -29,8 +29,7 @@ _chunks := map[ChunkPos]Chunk{}
 _world_futex := sync.Futex(0)
 
 init_world::proc() {
-    bm := utils.bench_start("init_world")
-    defer utils.bench_end(bm)
+    utils.bench("init_world")
 
     _chunks_to_generate = utils.create_one_to_one_queue(ChunkPos)
     _chunks_to_remove = utils.create_one_to_one_queue(ChunkPos)
@@ -47,10 +46,38 @@ init_world::proc() {
 }
 
 deinit_world::proc() {
+    _world_should_update = false
+    sync.atomic_store(&_world_futex, 1)
+    sync.futex_signal(&_world_futex)
+    sync.futex_wait(&_world_loop_running, 1)
+
     utils.destroy(&_chunks_to_generate)
     utils.destroy(&_chunks_to_remove)
     utils.destroy(&_chunks_to_generate_at)
-    // TODO:  wait for world thread to finish
+
+    fmt.println(utils.length(_small_chunk_pool), utils.length(_large_chunk_pool), utils.length(_render_mask_pool))
+    fmt.println(len(_chunks))
+
+    for _, chunk in _chunks {
+        if chunk.small != nil {
+            utils.release(&_small_chunk_pool, chunk.small)
+        } else {
+            utils.release(&_large_chunk_pool, chunk.large)
+        }
+        utils.release(&_render_mask_pool, chunk.cull_mask)
+    }
+    
+    fmt.println(utils.length(_small_chunk_pool), utils.length(_large_chunk_pool), utils.length(_render_mask_pool))
+
+    utils.call_for_all(&_small_chunk_pool, struct{}{}, proc(chunk: ^SmallChunk, _: struct{}) {
+        delete(chunk.blocks)
+    })
+
+    utils.destroy(&_small_chunk_pool)
+    utils.destroy(&_large_chunk_pool)
+    utils.destroy(&_render_mask_pool)
+
+    clear(&_chunks)
 }
 
 add_chunk_to_generate::proc(pos: ChunkPos) {
@@ -71,21 +98,25 @@ add_chunk_to_generate_at::proc(pos: ChunkPos) {
     sync.futex_signal(&_world_futex)
 }
 
+_world_loop_running := sync.Futex(0)
+
 world_loop::proc() {
     using utils
 
+    sync.atomic_store(&_world_loop_running, 1)
+
     for world_should_update() {
-        for !is_empty(&_chunks_to_generate_at) {
+        for !is_empty(&_chunks_to_generate_at) && _world_should_update {
             if is_empty(&_chunks_to_generate) && is_empty(&_chunks_to_remove) {
                 pos, _ := dequeue(&_chunks_to_generate_at)
                 queue_generations_at(pos, RENDER_DISTANCE)
             }
         }
-        for !is_empty(&_chunks_to_generate) {
+        for !is_empty(&_chunks_to_generate) && _world_should_update {
             pos, _ := dequeue(&_chunks_to_generate)
             generate_chunk(pos)
         }
-        for !is_empty(&_chunks_to_remove) {
+        for !is_empty(&_chunks_to_remove) && _world_should_update {
             pos, _ := dequeue(&_chunks_to_remove)
             remove_chunk(pos)
         }
@@ -96,32 +127,46 @@ world_loop::proc() {
 
         sync.futex_wait(&_world_futex, 0)
     }
+
+    sync.atomic_store(&_world_loop_running, 0)
+    sync.futex_signal(&_world_loop_running)
 }
 
 queue_generations_at::proc(center: ChunkPos, radius: i32) {
-    using utils
-
-    bm := bench_start("queue_generations_at")
-    defer bench_end(bm)
+    utils.bench("queue_generations_at")
 
     Curry::struct {
         center: ChunkPos,
         radius: i32,
     }
 
-    predicate::proc(pos: ChunkPos, chunk: Chunk, curry:Curry) -> bool {
+    utils.delete_key_if(&_chunks, Curry{center, radius}, proc(pos: ChunkPos, chunk: Chunk, curry:Curry) -> bool {
         if bool(
             abs(pos.x - curry.center.x) > curry.radius ||
             abs(pos.y - curry.center.y) > curry.radius ||
             abs(pos.z - curry.center.z) > curry.radius
         ) {
-            enqueue(&_chunks_to_remove, pos)
+            utils.enqueue(&_chunks_to_remove, pos)
             return true
         }
         return false
-    }
+    })
 
-    delete_key_if(&_chunks, predicate, Curry{center, radius})
+    for x := -radius; x <= radius; x += 1 {
+        for y := -radius; y <= radius; y += 1 {
+            for z := -radius; z <= radius; z += 1 {
+                pos := ChunkPos{
+                    center.x + x,
+                    center.y + y,
+                    center.z + z,
+                }
+                _, has := _chunks[pos]
+                if !has {
+                    utils.enqueue(&_chunks_to_generate, pos)
+                }
+            }
+        }
+    }
 }
 
 generate_chunk::proc(pos: ChunkPos) {
@@ -146,12 +191,11 @@ generate_chunk::proc(pos: ChunkPos) {
             mask[x + z*16] = transmute(u16)((1 << transmute(u32)height) - 1)
         }
     }
-    _chunks[pos] = construct_chunk(chunk_layout, mask)
+    _chunks[pos] = construct_chunk(chunk_layout[:], mask)
 }
 
-construct_chunk::proc(layout: ChunkLayout, mask: ^ChunkBitMask) -> (chunk: Chunk) {
-    layout := layout
-    block_counts := map[BlockID]u32{}
+construct_chunk::proc(layout: []BlockID, mask: ^ChunkBitMask) -> (chunk: Chunk) {
+    @(static) block_counts := map[BlockID]u32{}
 
     chunk.cull_mask = mask
 
@@ -180,6 +224,8 @@ construct_chunk::proc(layout: ChunkLayout, mask: ^ChunkBitMask) -> (chunk: Chunk
             chunk.small.data[i] = u8(idx == 0 ? 0 : block_counts[idx])
         }
     }
+
+    clear(&block_counts)
     return chunk
 }
 
@@ -189,10 +235,12 @@ remove_chunk::proc(pos: ChunkPos) {
 
     delete_key(&_chunks, pos)
     if chunk.small != nil {
+        clear(&chunk.small.blocks)
         utils.release(&_small_chunk_pool, chunk.small)
     } else {
         utils.release(&_large_chunk_pool, chunk.large)
     }
+    utils.release(&_render_mask_pool, chunk.cull_mask)
 }
 
 world_to_chunk_space::proc {

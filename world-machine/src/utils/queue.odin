@@ -4,26 +4,6 @@ import "core:sync"
 import "core:mem"
 import "core:math/bits"
 
-expand_queue::proc {
-    expand_regular_queue,
-    expand_one_to_one_queue,
-}
-
-enqueue::proc {
-    enqueue_regular,
-    enqueue_one_to_one,
-}
-
-dequeue::proc {
-    dequeue_regular,
-    dequeue_one_to_one,
-}
-
-is_empty::proc {
-    is_empty_regular,
-    is_empty_one_to_one,
-}
-
 // Ring buffer with dynamic size and atomic enqueue/dequeue operations
 Queue::struct($T:typeid) {
     data: [^]T,
@@ -58,6 +38,7 @@ expand_regular_queue::proc(q: ^Queue($T)) {
     new_ptr, _ := mem.resize(q.data, q.capacity*size_of(T), q.capacity*2*size_of(T))
     q.data = transmute(^T)new_ptr
     copy(q.data[q.tail + q.capacity:q.capacity*2], q.data[q.tail:q.capacity])
+    q.head += q.capacity
     q.capacity *= 2
     sync.atomic_store(&q.expanding, false)
     sync.futex_broadcast(transmute(^sync.Futex)&q.expanding)
@@ -84,6 +65,26 @@ dequeue_regular::proc(q: ^Queue($T)) -> (elem: T, ok: bool) #optional_ok {
 
 is_empty_regular::proc(q: ^Queue($T)) -> bool {
     return q.head == q.tail
+}
+
+call_for_all_regular::proc(q: ^Queue($T), curry: $C, f: proc(elem: T, curry: C)) {
+    if is_empty_regular(q) do return
+    if q.head < q.tail {
+        for i in q.head..<q.tail {
+            f(q.data[i], curry)
+        }
+    } else {
+        for i in q.head..<q.capacity {
+            f(q.data[i], curry)
+        }
+        for i in 0..<q.tail {
+            f(q.data[i], curry)
+        }
+    }
+}
+
+len_regular::#force_inline proc(q: Queue($T)) -> int {
+    return (q.tail - q.head) %% q.capacity
 }
 
 // Use this if you're sure the queue is only filled by one thread
@@ -117,6 +118,7 @@ expand_one_to_one_queue::proc(q: ^OneToOneQueue($T)) {
     new_ptr, _ := mem.resize(q.data, q.capacity*size_of(T), q.capacity*2*size_of(T))
     q.data = transmute(^T)new_ptr
     copy(q.data[q.tail + q.capacity:q.capacity*2], q.data[q.tail:q.capacity])
+    q.head += q.capacity
     q.capacity *= 2
 }
 
@@ -137,5 +139,25 @@ dequeue_one_to_one::proc(q: ^OneToOneQueue($T)) -> (elem: T, ok: bool) #optional
 
 is_empty_one_to_one::proc(q: ^OneToOneQueue($T)) -> bool {
     return q.head == q.tail
+}
+
+call_for_all_one_to_one::proc(q: ^OneToOneQueue($T), curry: $C, f: proc(elem: T, curry: C)) {
+    if is_empty_one_to_one(q) do return
+    if q.head < q.tail {
+        for i in q.head..<q.tail {
+            f(q.data[i], curry)
+        }
+    } else {
+        for i in q.head..<q.capacity {
+            f(q.data[i], curry)
+        }
+        for i in 0..<q.tail {
+            f(q.data[i], curry)
+        }
+    }
+}
+
+len_one_to_one::#force_inline proc(q: OneToOneQueue($T)) -> int {
+    return (q.tail - q.head) %% q.capacity
 }
 

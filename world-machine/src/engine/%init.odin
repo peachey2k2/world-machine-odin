@@ -4,7 +4,6 @@ import "core:os"
 import "core:fmt"
 import "core:strings"
 import "core:thread"
-import "core:time"
 
 import gl "vendor:OpenGL"
 import sdl "vendor:sdl2"
@@ -27,19 +26,19 @@ WINDOW_SIZE := [2]i32{800, 450}
 @(private) _world_thread : ^thread.Thread
 
 init::proc() {
-    utils.init_signals()
+    utils.init_engine_signals()
     utils.init_logger()
 
     set_ext_vars()
     init_sdl()
     
     do_requirement_checks()
+
+    load_all_mods()
+    init_mod_functions()
     
-    // modloader.load_mods()
-    // modloader.init_functions()
-    
-    init_mod_blocks()
     init_block_atlas()
+    init_mod_blocks()
     init_block_mesh()
 
     init_ui()
@@ -51,9 +50,6 @@ init::proc() {
 
     _world_should_update = true
     _world_thread = thread.create_and_start(world_loop)
-
-    _last_frame_tick = time.tick_now()
-    main_loop()
 }
 
 init_sdl::proc() {
