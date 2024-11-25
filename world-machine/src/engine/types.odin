@@ -66,11 +66,11 @@ Chunk::struct { // yxz
 }
 
 // Used when constructing a chunk
-ChunkLayout:: [16*16*16]u32
+ChunkLayout:: [16*16*16]BlockID
 
 // raw texture data
 RawTexture::struct {
-    data:   []Color,
+    data:   [^]Color,
     width:  u32,
     height: u32,
 }
@@ -112,7 +112,7 @@ InitItemInfo::struct {
 InitBlockInfo::struct {
     name:       cstring,
     tooltip:    cstring,
-    texture:    RawTexture,
+    texture:    ^RawTexture,
     // model: // TODO: implement this
 }
 

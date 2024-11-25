@@ -4,7 +4,7 @@ import "core:strings"
 import "core:fmt"
 import "core:slice"
 
-init_signals::proc() {
+init_engine_signals::proc() {
     for i in Signals {
         engine_signals[i] = EngineSignal{
             listeners = new([dynamic]proc())
@@ -14,7 +14,7 @@ init_signals::proc() {
     defer_deinit(deinit_signals)
 }
 
-@(private) deinit_signals::proc() {
+@(private="file") deinit_signals::proc() {
     for i in Signals {
         delete(engine_signals[i].listeners^)
     }

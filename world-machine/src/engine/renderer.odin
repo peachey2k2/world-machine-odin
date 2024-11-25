@@ -62,7 +62,7 @@ _should_update_blocks_mesh := false
 
 init_block_atlas::proc() {
     _block_atlas_strip = {
-        data = make([]Color, TILE_SIZE * TILE_SIZE  * TILES_PER_ROW),
+        data = make([^]Color, TILE_SIZE * TILE_SIZE  * TILES_PER_ROW),
         width = TILE_SIZE * TILES_PER_ROW,
         height = TILE_SIZE, // we only keep one row in cpu
     }
@@ -81,9 +81,15 @@ init_block_atlas::proc() {
         type           = gl.UNSIGNED_BYTE,
         pixels         = nil,
     )
+
+    utils.defer_deinit(deinit_block_atlas)
 }
 
-add_texture_to_atlas::proc(texture: RawTexture) -> TextureID {
+deinit_block_atlas::proc() {
+    gl.DeleteTextures(1, &_block_atlas_id)
+}
+
+add_texture_to_atlas::proc "contextless" (texture: RawTexture) -> TextureID {
     texture_id := get_new_texture_id()
 
     if texture_id % TILES_PER_ROW == 0 && texture_id > 0 {
@@ -111,14 +117,13 @@ add_texture_to_atlas::proc(texture: RawTexture) -> TextureID {
     return texture_id
 }
 
-get_new_texture_id::proc() -> TextureID {
+get_new_texture_id::proc "contextless" () -> TextureID {
     defer _id_counter += 1
     return _id_counter
 }
 
 init_block_mesh::proc() {
-    bm := utils.bench_start("init_block_mesh")  
-    defer utils.bench_end(bm)
+    utils.bench("init_block_mesh")  
 
     // upload remaining block atlas strip
     gl.TexSubImage2D(
