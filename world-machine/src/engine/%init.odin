@@ -122,8 +122,8 @@ set_ext_vars::proc() {
     when ODIN_OS == .Windows {
         // TODO: Implement
     } else when ODIN_OS == .Linux {
-        // os.set_env("__NV_PRIME_RENDER_OFFLOAD", "1")
-        // os.set_env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+        os.set_env("__NV_PRIME_RENDER_OFFLOAD", "1")
+        os.set_env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
     } else when ODIN_OS == .Darwin {
         // TODO: Implement
     }

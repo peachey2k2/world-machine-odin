@@ -55,20 +55,12 @@ deinit_world::proc() {
     utils.destroy(&_chunks_to_remove)
     utils.destroy(&_chunks_to_generate_at)
 
-    fmt.println(utils.length(_small_chunk_pool), utils.length(_large_chunk_pool), utils.length(_render_mask_pool))
-    fmt.println(len(_chunks))
-
     for _, chunk in _chunks {
         if chunk.small != nil {
-            utils.release(&_small_chunk_pool, chunk.small)
-        } else {
-            utils.release(&_large_chunk_pool, chunk.large)
+            delete(chunk.small.blocks)
         }
-        utils.release(&_render_mask_pool, chunk.cull_mask)
     }
     
-    fmt.println(utils.length(_small_chunk_pool), utils.length(_large_chunk_pool), utils.length(_render_mask_pool))
-
     utils.call_for_all(&_small_chunk_pool, struct{}{}, proc(chunk: ^SmallChunk, _: struct{}) {
         delete(chunk.blocks)
     })
@@ -192,6 +184,7 @@ generate_chunk::proc(pos: ChunkPos) {
         }
     }
     _chunks[pos] = construct_chunk(chunk_layout[:], mask)
+    utils.enqueue(&_render_chunks_to_update, pos)
 }
 
 construct_chunk::proc(layout: []BlockID, mask: ^ChunkBitMask) -> (chunk: Chunk) {

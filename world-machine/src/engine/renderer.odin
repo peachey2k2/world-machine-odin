@@ -3,6 +3,7 @@ package engine
 import "core:time"
 import "core:math/linalg"
 import "core:math/bits"
+import "core:fmt"
 
 import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
@@ -51,10 +52,10 @@ _block_mesh : struct {
     
 } = {}
 
-@(private="file")
+@(private)
 _render_chunks_to_update : utils.Queue(ChunkPos)
 
-@(private="file")
+@(private)
 _render_chunks_to_deactivate : utils.Queue(ChunkPos)
 
 @(private="file")
@@ -374,6 +375,8 @@ calculate_chunk_data::proc(pos: ChunkPos) -> (vertex_data: [6*CS*CS*CS]BlockVert
 
                         for bits_here > 0 {
                             bit_pos := u8(bits.trailing_zeros(bits_here))
+                            // if bit_pos == 0 do continue
+                            
                             block := blocks[get_axis_idx(axis, forward+1, bit_pos+1, layer+1)]
 
                             forward_merged_ref := &forward_merged[bit_pos]
@@ -451,6 +454,8 @@ calculate_chunk_data::proc(pos: ChunkPos) -> (vertex_data: [6*CS*CS*CS]BlockVert
                             bit_pos := u8(bits.trailing_zeros(bits_here))
                             
                             bits_here &= ~(1 << bit_pos)
+                            if bit_pos == 0 do continue
+
 
                             block := blocks[get_axis_idx(axis, right+1, forward+1, bit_pos)]
                             forward_merged_ref := &forward_merged[rightCS + int(bit_pos) - 1]
@@ -540,10 +545,11 @@ edit_mesh::proc(pos: ChunkPos, data: []BlockVertData, size: u32) {
     }
 
     if attrib.size > len(attrib.buffer) {
-        reserve(&attrib.buffer, attrib.size + 1024)
+        resize(&attrib.buffer, attrib.size + 1024)
     }
 
     // despacito
+    fmt.print("size:", size, "idx:", idx, "cmd:", cmd, "idx:", idx, "attrib.size:", attrib.size, "len(attrib.buffer):", len(attrib.buffer), "\n")
     copy(attrib.buffer[cmd.base_instance:], data[:size])
 }
 
@@ -590,8 +596,8 @@ create_indirect_command::proc(size: u32) -> (cmd: ^IndirectCommand, idx: int) {
 
     // if no gaps, put to the end
     last := indirect.buffer[len(indirect.buffer)-1]
-    cmd.base_instance = last.base_instance + last.instance_count
-    attrib.size = int(cmd.base_instance + size)
+    command.base_instance = last.base_instance + last.instance_count
+    attrib.size = int(command.base_instance + size)
     append(&indirect.buffer, command)
     cmd = &indirect.buffer[len(indirect.buffer)-1]
     idx = len(indirect.buffer)-1

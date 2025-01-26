@@ -48,7 +48,9 @@ draw_debug_window::proc() {
     @(static) sb := strings.Builder{}
     imgui.SetNextWindowPos({0, 0}, .Once)
     imgui.Begin("Debug")
-    imgui.Text(strings.unsafe_string_to_cstring(fmt.sbprintf(&sb, "FPS: %d%c", mean_framerate(), byte(0))))
+    imgui.Text(strings.unsafe_string_to_cstring(fmt.sbprintf(&sb, "FPS:%d%c", mean_framerate(), byte(0))))
+    strings.builder_reset(&sb)
+    imgui.Text(strings.unsafe_string_to_cstring(fmt.sbprintf(&sb, "yaw:%f pitch:%f%c", _camera.yaw, _camera.pitch, byte(0))))
     strings.builder_reset(&sb)
     imgui.End()
 }
